@@ -394,9 +394,10 @@ export function AppShell({ pathname, children }: PropsWithChildren<{ pathname: s
       setThreadError(requestError instanceof Error ? requestError.message : "暂时无法删除对话");
     }
   };
+  const isPractice = pathname.startsWith("/app/practice");
 
   return (
-    <div className={`app-frame${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
+    <div className={`app-frame${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${isPractice ? " app-frame--no-bottom-nav" : ""}`}>
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <div className="workspace-quick-actions" role="group" aria-label="帮助、显示与反馈">
         {isGuest && (
@@ -792,24 +793,26 @@ export function AppShell({ pathname, children }: PropsWithChildren<{ pathname: s
         </main>
       </div>
 
-      <nav className="mobile-bottom-nav" aria-label="主要功能" data-active-index={activeNavigationIndex}>
-        {primaryNavigation.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
-            <AppLink
-              key={item.href}
-              href={item.href}
-              className={`mobile-bottom-link${active ? " is-active" : ""}`}
-              ariaCurrent={active ? "page" : undefined}
-              guard={item.requiresAuth ? () => requireLogin(`登录后即可使用${item.label}。`) : undefined}
-            >
-              <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
-              <span>{item.mobileLabel}</span>
-            </AppLink>
-          );
-        })}
-      </nav>
+      {!isPractice && (
+        <nav className="mobile-bottom-nav" aria-label="主要功能" data-active-index={activeNavigationIndex}>
+          {primaryNavigation.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <AppLink
+                key={item.href}
+                href={item.href}
+                className={`mobile-bottom-link${active ? " is-active" : ""}`}
+                ariaCurrent={active ? "page" : undefined}
+                guard={item.requiresAuth ? () => requireLogin(`登录后即可使用${item.label}。`) : undefined}
+              >
+                <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
+                <span>{item.mobileLabel}</span>
+              </AppLink>
+            );
+          })}
+        </nav>
+      )}
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} pagePath={pathname} />
       <ChangelogDialog
         open={changelogOpen}

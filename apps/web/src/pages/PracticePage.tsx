@@ -21,18 +21,6 @@ import "../styles/practice.css";
 
 const questions: PracticeQuestion[] = rawQuestions as PracticeQuestion[];
 
-const QUICK_TAGS = [
-  "夏天 胃气",
-  "四大传统节日",
-  "学习新事物 恐惧",
-  "动植物 快速掩埋",
-  "莫扎特效应",
-  "荷尔蒙经济",
-  "肥胖 疾病",
-  "中国读本 十几万字",
-  "面孔识别",
-  "科普文章 枯燥"
-];
 
 export function PracticePage() {
   const [activeTab, setActiveTab] = useState<"flash" | "practice">("flash");
@@ -251,24 +239,6 @@ export function PracticePage() {
                 <X size={16} aria-hidden="true" />
               </button>
             )}
-          </div>
-
-          {/* 快捷特征词标签 */}
-          <div className="flash-tags">
-            <span>试一试快捷词：</span>
-            {QUICK_TAGS.map(tag => (
-              <button
-                key={tag}
-                type="button"
-                className="flash-tag-btn"
-                onClick={() => {
-                  setSearchQuery(tag);
-                  searchInputRef.current?.focus();
-                }}
-              >
-                {tag}
-              </button>
-            ))}
           </div>
 
           {/* 结果展示 */}
