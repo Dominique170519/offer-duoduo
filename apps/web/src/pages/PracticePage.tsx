@@ -115,15 +115,53 @@ export function PracticePage() {
     );
   };
 
+  // Helper to render question stem including potential HTML tables
+  const renderStem = (stem: string, query?: string) => {
+    const tableIdx = stem.indexOf("<table");
+    if (tableIdx === -1) {
+      return query ? renderHighlightedText(stem, query) : stem;
+    }
+
+    const textPart = stem.slice(0, tableIdx).trim();
+    const tablePart = stem.slice(tableIdx).trim();
+
+    return (
+      <div className="practice-stem-content">
+        <div>{query ? renderHighlightedText(textPart, query) : textPart}</div>
+        <div
+          className="practice-stem-table-wrapper"
+          dangerouslySetInnerHTML={{ __html: tablePart }}
+        />
+      </div>
+    );
+  };
+
   // ==========================================
   // Practice Mode State
   // ==========================================
+  const [selectedCategory, setSelectedCategory] = useState<"all" | "言语理解与表达" | "资料分析">("all");
   const [currentPracticeIndex, setCurrentPracticeIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [timerActive, setTimerActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
 
-  const currentQ = questions[currentPracticeIndex] || questions[0];
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts = { all: questions.length, verbal: 0, data: 0 };
+    for (const q of questions) {
+      if (q.category === "言语理解与表达") counts.verbal++;
+      else if (q.category === "资料分析") counts.data++;
+    }
+    return counts;
+  }, []);
+
+  // Filter questions according to selected category
+  const filteredQuestions = useMemo(() => {
+    if (selectedCategory === "all") return questions;
+    return questions.filter(q => q.category === selectedCategory);
+  }, [selectedCategory]);
+
+  const currentQ = filteredQuestions[currentPracticeIndex] || filteredQuestions[0] || questions[0];
   const currentAnswer = userAnswers[currentQ?.id];
 
   // 60-second exam countdown timer
@@ -143,13 +181,19 @@ export function PracticePage() {
     return () => clearInterval(timer);
   }, [timerActive, currentPracticeIndex, activeTab]);
 
+  const handleCategoryChange = (cat: "all" | "言语理解与表达" | "资料分析") => {
+    setSelectedCategory(cat);
+    setCurrentPracticeIndex(0);
+    setTimeLeft(60);
+  };
+
   const handleSelectOption = (label: string) => {
     if (userAnswers[currentQ.id]) return; // already answered
     setUserAnswers(prev => ({ ...prev, [currentQ.id]: label }));
   };
 
   const handleNextQuestion = () => {
-    if (currentPracticeIndex < questions.length - 1) {
+    if (currentPracticeIndex < filteredQuestions.length - 1) {
       setCurrentPracticeIndex(prev => prev + 1);
       setTimeLeft(60);
     }
@@ -163,7 +207,7 @@ export function PracticePage() {
   };
 
   const handleRandomQuestion = () => {
-    const randomIndex = Math.floor(Math.random() * questions.length);
+    const randomIndex = Math.floor(Math.random() * filteredQuestions.length);
     setCurrentPracticeIndex(randomIndex);
     setTimeLeft(60);
   };
@@ -179,7 +223,7 @@ export function PracticePage() {
           <div className="practice-header__title-row">
             <h1>笔试练习中心</h1>
             <span className="practice-badge-pulse">
-              <Flame size={13} aria-hidden="true" /> 已载入 100 道北森真题
+              <Flame size={13} aria-hidden="true" /> 已载入 {questions.length} 道北森真题（言语理解 + 资料分析）
             </span>
           </div>
           <p className="practice-header__desc">
@@ -266,9 +310,9 @@ export function PracticePage() {
                 </div>
               </div>
 
-              {/* 题干展示（关键词高亮） */}
+              {/* 题干展示（关键词高亮与表格支持） */}
               <div className="flash-stem-box">
-                {renderHighlightedText(topMatch.stem, searchQuery)}
+                {renderStem(topMatch.stem, searchQuery)}
               </div>
 
               {/* 所有选项列表 */}
@@ -366,10 +410,32 @@ export function PracticePage() {
       {activeTab === "practice" && (
         <section className="practice-card" aria-label="题库练习">
           <div className="practice-card-header">
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <span className="practice-category-tag">{currentQ.category}</span>
-              <span style={{ fontSize: "0.9rem", color: "var(--of-text-muted)", fontWeight: 500 }}>
-                第 {currentPracticeIndex + 1} / {questions.length} 题
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <div className="practice-category-filters" role="group" aria-label="题库分类选择">
+                <button
+                  type="button"
+                  className={`practice-filter-chip ${selectedCategory === "all" ? "active" : ""}`}
+                  onClick={() => handleCategoryChange("all")}
+                >
+                  全部 ({categoryCounts.all})
+                </button>
+                <button
+                  type="button"
+                  className={`practice-filter-chip ${selectedCategory === "言语理解与表达" ? "active" : ""}`}
+                  onClick={() => handleCategoryChange("言语理解与表达")}
+                >
+                  言语理解 ({categoryCounts.verbal})
+                </button>
+                <button
+                  type="button"
+                  className={`practice-filter-chip ${selectedCategory === "资料分析" ? "active" : ""}`}
+                  onClick={() => handleCategoryChange("资料分析")}
+                >
+                  资料分析 ({categoryCounts.data})
+                </button>
+              </div>
+              <span style={{ fontSize: "0.85rem", color: "var(--of-text-muted)", fontWeight: 500 }}>
+                第 {currentPracticeIndex + 1} / {filteredQuestions.length} 题
               </span>
             </div>
 
@@ -402,7 +468,7 @@ export function PracticePage() {
 
           {/* 题干 */}
           <div className="practice-stem">
-            {currentQ.stem}
+            {renderStem(currentQ.stem)}
           </div>
 
           {/* 选项列表 */}
@@ -488,7 +554,7 @@ export function PracticePage() {
                 type="button"
                 className="practice-action-btn primary"
                 onClick={handleNextQuestion}
-                disabled={currentPracticeIndex === questions.length - 1}
+                disabled={currentPracticeIndex === filteredQuestions.length - 1}
               >
                 <span>下一题</span>
                 <ChevronRight size={16} aria-hidden="true" />
@@ -515,7 +581,7 @@ export function PracticePage() {
                 }}
                 aria-label="题号跳转"
               >
-                {questions.map((q, idx) => (
+                {filteredQuestions.map((q, idx) => (
                   <option key={q.id} value={idx}>
                     第 {idx + 1} 题 ({userAnswers[q.id] ? (userAnswers[q.id] === q.answer ? "✓ 对" : "✗ 错") : "未做"})
                   </option>
