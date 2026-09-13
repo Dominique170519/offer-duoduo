@@ -124,6 +124,30 @@ test("cloud account security flows", { timeout: 30000 }, async t => {
     assert.equal((await h.worker.getCloudSyncOverview()).requiresUploadConsent, true);
   });
 
+  await t.test("an existing login can approve the expanded sync scope without logging in again", async st => {
+    const h = await harness(st);
+    await h.seed("A", { consentVersion: 1 });
+
+    const overview = await h.ui.renewCloudSyncConsent();
+
+    assert.equal((await h.worker.state.loadCloudDataOwner()).consentVersion, h.worker.state.CLOUD_RESUME_CONSENT_VERSION);
+    assert.equal(overview.requiresUploadConsent, false);
+    assert.equal(h.calls.some(call => call.path === "/v1/auth/device-token"), false);
+    assert.equal(h.calls.some(call => call.path === "/v1/applications/sync"), true);
+    assert.match(h.confirmations[0], /兴趣、到岗时间及简历图片和排版/);
+  });
+
+  await t.test("declining the expanded sync scope leaves the previous consent unchanged", async st => {
+    const h = await harness(st);
+    await h.seed("A", { consentVersion: 1 });
+    h.approve = false;
+
+    await assert.rejects(h.ui.renewCloudSyncConsent(), /已取消同步授权/);
+
+    assert.equal((await h.worker.state.loadCloudDataOwner()).consentVersion, 1);
+    assert.equal(h.calls.length, 0);
+  });
+
   await t.test("first connection cancel keeps local resumes and does not upload", async st => {
     const h = await harness(st);
     await h.worker.storage.saveResumeLibrary([resume()]);
@@ -219,6 +243,35 @@ test("cloud account security flows", { timeout: 30000 }, async t => {
     assert.deepEqual(upload.body.templates, []);
     assert.equal((await h.worker.storage.loadResumeLibrary()).length, 0);
     assert.deepEqual(await h.worker.storage.loadPendingDeletedResumeIds(h.scope("A")), []);
+  });
+
+  await t.test("deleting the conflicting resume clears its stale sync warning", async st => {
+    const h = await harness(st);
+    await h.seed();
+    const [local] = await h.worker.storage.loadResumeLibrary();
+    await h.worker.storage.saveResumeLibrary([{
+      ...local,
+      syncConflict: {
+        id: local.id,
+        revision: 2,
+        name: "Cloud Resume",
+        profile: createEmptyPersonalProfile(),
+        createdAt: now,
+        updatedAt: now
+      }
+    }], { origin: "cloud" });
+    await h.worker.state.saveCloudSyncState({
+      cursor: "1",
+      conflicts: [],
+      lastError: "通用简历存在多端修改，双方内容已保留。请打开网申信息中心处理同步冲突。"
+    });
+
+    await h.ui.deleteCloudResumeTemplate(local.id);
+
+    const overview = await h.worker.getCloudSyncOverview();
+    assert.equal((await h.worker.storage.loadResumeLibrary()).length, 0);
+    assert.equal(overview.state.lastError, undefined);
+    assert.equal((await h.worker.state.loadCloudSyncState()).lastError, undefined);
   });
 
   await t.test("failed cloud reset does not erase local source files or claim success", async st => {

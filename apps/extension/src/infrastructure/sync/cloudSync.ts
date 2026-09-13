@@ -64,6 +64,7 @@ export type CloudSyncCommand =
   | { action: "sync" | "disconnect" | "clearLocal" | "resync" | "resetResumes" | "clearTemplates" }
   | { action: "preparePair"; code: string; apiBaseUrl: string; deviceName: string; forceRebind?: boolean }
   | { action: "finishPair" | "cancelPair"; pendingId: string }
+  | { action: "approveConsent"; scope: string }
   | { action: "deleteTemplate"; templateId: string; scope?: string }
   | { action: "resolve"; entityId: string; choice: "local" | "server" }
   | { action: "tailor"; sourceResumeId: string; job: TailorJobContext; applicationId?: string; scope: string };
@@ -116,6 +117,8 @@ export async function handleCloudSyncCommand(request: CloudSyncCommand): Promise
         return performClearCloudTemplates();
       case "deleteTemplate":
         return performDeleteTemplate(request.templateId, request.scope);
+      case "approveConsent":
+        return performApproveConsent(request.scope);
       case "resolve":
         return performResolveConflict(request.entityId, request.choice);
       case "tailor":
@@ -268,10 +271,20 @@ function defaultDeviceName(): string {
 
 export async function getCloudSyncOverview(): Promise<CloudSyncOverview> {
   const connection = await migrateLegacyLocalConnection(await loadCloudConnection());
-  const [state, outbox] = await Promise.all([
+  const [storedState, outbox, library] = await Promise.all([
     loadCloudSyncState(),
-    loadCloudSyncOutbox()
+    loadCloudSyncOutbox(),
+    loadResumeLibrary()
   ]);
+  // A resume conflict is stored as both an actionable candidate on the resume
+  // and a summary error for the settings page. Deleting or resolving the
+  // candidate must also retire that summary instead of leaving a permanent
+  // red warning behind.
+  const staleResumeConflict = storedState.lastError?.startsWith("通用简历存在多端修改")
+    && !library.some((resume) => resume.syncConflict);
+  const state: CloudSyncState = { ...storedState };
+  if (staleResumeConflict) delete state.lastError;
+  if (staleResumeConflict) await saveCloudSyncState(state);
   const friendlyState = state.lastError === "Failed to fetch"
     ? { ...state, lastError: "无法连接 JobKoI 官网，请检查网络后重新登录并同步" }
     : state;
@@ -291,14 +304,13 @@ export async function pairCloudDevice(
   const preview = await command<PairPreview>({ action: "preparePair", code, apiBaseUrl, deviceName, forceRebind: options.forceRebind });
   try {
     if (preview.requiresConsent && !options.skipConsent) {
-      const action = preview.migration ? "迁移并同步" : "同步";
-      const approved = typeof window !== "undefined" && window.confirm(
-        `${action}至 ${preview.user.email}（${preview.apiBaseUrl}）？\n\n` +
-        `包括 ${preview.jobCount} 条投递、${preview.resumeCount} 份通用简历，以及之后保存的投递与通用简历。\n` +
-        "简历上传姓名、联系方式、教育、经历、项目、技能、兴趣、到岗时间及简历图片和排版。证件、家庭、健康、紧急联系人等网申专用字段及原文件留在本地。\n\n" +
-        (preview.migration ? "旧账号的本地资料将绑定至这个账号；旧账号云端数据不变。\n" : "") +
-        "确认后开始同步；取消不会删除或迁移任何本地资料。"
-      );
+      const approved = typeof window !== "undefined" && window.confirm(cloudConsentMessage({
+        email: preview.user.email,
+        apiBaseUrl: preview.apiBaseUrl,
+        jobCount: preview.jobCount,
+        resumeCount: preview.resumeCount,
+        migration: preview.migration
+      }));
       if (!approved) throw new Error("已取消同步授权，本地资料保持不变");
     }
     return await command<CloudSyncOverview>({ action: "finishPair", pendingId: preview.pendingId });
@@ -306,6 +318,58 @@ export async function pairCloudDevice(
     await command({ action: "cancelPair", pendingId: preview.pendingId }).catch(() => undefined);
     throw error;
   }
+}
+
+function cloudConsentMessage(input: {
+  email: string;
+  apiBaseUrl: string;
+  jobCount: number;
+  resumeCount: number;
+  migration?: boolean;
+}): string {
+  return `同步至 ${input.email}（${input.apiBaseUrl}）？\n\n` +
+    `包括 ${input.jobCount} 条投递、${input.resumeCount} 份通用简历，以及之后保存的投递与通用简历。\n` +
+    "简历上传姓名、联系方式、教育、经历、项目、技能、兴趣、到岗时间及简历图片和排版。证件、家庭、健康、紧急联系人等网申专用字段及原文件留在本地。\n\n" +
+    (input.migration ? "旧账号的本地资料将绑定至这个账号；旧账号云端数据不变。\n" : "") +
+    "确认后开始同步；取消不会删除或迁移任何本地资料。";
+}
+
+/** Renew an expanded sync boundary without forcing an already authenticated
+ * account through the browser login flow again. */
+export async function renewCloudSyncConsent(): Promise<CloudSyncOverview> {
+  const [connection, owner, localJobs, library] = await Promise.all([
+    loadCloudConnection(),
+    loadCloudDataOwner(),
+    loadJobs(),
+    loadResumeLibrary()
+  ]);
+  if (!connection) return loginAndSync();
+  const scope = connectionScope(connection);
+  if (!owner || cloudDataScope(owner) !== scope) {
+    throw new Error("本地资料属于另一个账号，请退出后重新登录");
+  }
+  const approved = typeof window !== "undefined" && window.confirm(cloudConsentMessage({
+    email: connection.user.email,
+    apiBaseUrl: connection.apiBaseUrl,
+    jobCount: localJobs.length,
+    resumeCount: library.filter((resume) => (resume.kind || "base") === "base").length
+  }));
+  if (!approved) throw new Error("已取消同步授权，本地资料保持不变");
+  return command<CloudSyncOverview>({ action: "approveConsent", scope });
+}
+
+async function performApproveConsent(expectedScope: string): Promise<CloudSyncOverview> {
+  const connection = await loadCloudConnection();
+  const owner = await loadCloudDataOwner();
+  if (!connection || !owner || connectionScope(connection) !== expectedScope || cloudDataScope(owner) !== expectedScope) {
+    throw new Error("账号状态已变化，请重新登录；本地资料未上传");
+  }
+  await saveCloudDataOwner({
+    ...owner,
+    consentVersion: CLOUD_RESUME_CONSENT_VERSION,
+    consentGrantedAt: new Date().toISOString()
+  });
+  return performBatchedCloudSync();
 }
 
 async function prepareCloudPair(code: string, apiBaseUrl: string, deviceName: string, forceRebind = false): Promise<PairPreview> {
@@ -442,7 +506,7 @@ export async function loginAndSync(
   }
   const code = callback.searchParams.get("code");
   if (!code) throw new Error("登录没有完成，请重新尝试");
-  return pairCloudDevice(code, apiBaseUrl, deviceName, { ...options, skipConsent: true });
+  return pairCloudDevice(code, apiBaseUrl, deviceName, options);
 }
 
 export async function disconnectCloud(): Promise<void> {
@@ -657,14 +721,12 @@ async function syncResumeTemplates(client: ReturnType<typeof createApiClient>, s
       updatedAt: resume.updatedAt
     }));
   let remoteTemplates;
-  let conflicted = false;
   try {
     remoteTemplates = (await client.resumes.syncTemplates({ templates })).templates;
   } catch (error) {
     if (!(error instanceof OfferFlowApiError) || error.status !== 409) throw error;
     // Read tombstones too; a read-only sync has no payload to conflict with.
     remoteTemplates = (await client.resumes.syncTemplates({ templates: [] })).templates;
-    conflicted = true;
   }
   // A network round-trip must not replace edits made while it was in flight.
   const latestLibrary = (await loadResumeLibrary()).filter(resume => !currentPendingDeletes.has(resume.id));
@@ -673,7 +735,7 @@ async function syncResumeTemplates(client: ReturnType<typeof createApiClient>, s
   const versions = await client.resumes.listVersions();
   nextLibrary = mergeRemoteResumeVersions(nextLibrary, versions.versions);
   if (JSON.stringify(nextLibrary) !== JSON.stringify(library)) await saveResumeLibrary(nextLibrary, { origin: "cloud" });
-  if (conflicted || nextLibrary.some(resume => resume.syncConflict)) throw new Error("通用简历存在多端修改，双方内容已保留。请打开网申信息中心处理同步冲突。");
+  if (nextLibrary.some(resume => resume.syncConflict)) throw new Error("通用简历存在多端修改，双方内容已保留。请打开网申信息中心处理同步冲突。");
 
 }
 

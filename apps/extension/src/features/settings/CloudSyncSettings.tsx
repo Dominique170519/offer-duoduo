@@ -17,6 +17,7 @@ import {
   deleteLocalApplicationsAndForgetOwner,
   getCloudSyncOverview,
   loginAndSync as loginAndSyncCloud,
+  renewCloudSyncConsent,
   resolveCloudConflict,
   resyncAllCloud,
   runCloudSync,
@@ -30,7 +31,7 @@ import {
   clearCloudDataOwner,
   clearCloudSyncStorage
 } from "@/infrastructure/sync/syncState";
-import { saveJobs, clearLocalProfileAndResumes } from "@/infrastructure/storage/storage";
+import { RESUMES_KEY, saveJobs, clearLocalProfileAndResumes } from "@/infrastructure/storage/storage";
 import { UserAvatar } from "@/features/workspace/UserAvatar";
 import "./cloud-sync.css";
 
@@ -58,7 +59,8 @@ export default function CloudSyncSettings({
       if (
         changes[CLOUD_CONNECTION_KEY] ||
         changes[CLOUD_SYNC_STATE_KEY] ||
-        changes[CLOUD_SYNC_OUTBOX_KEY]
+        changes[CLOUD_SYNC_OUTBOX_KEY] ||
+        changes[RESUMES_KEY]
       ) {
         void refresh();
       }
@@ -72,10 +74,12 @@ export default function CloudSyncSettings({
     setError("");
     setMessage("");
     try {
-      const next = await loginAndSyncCloud(undefined, undefined, undefined, {
-        allowInitialUpload: true,
-        forceRebind
-      });
+      const next = overview?.connection && overview.requiresUploadConsent
+        ? await renewCloudSyncConsent()
+        : await loginAndSyncCloud(undefined, undefined, undefined, {
+            allowInitialUpload: true,
+            forceRebind
+          });
       setOverview(next);
       setMessage(`已登录并同步 ${next.state.lastUploadedCount ?? 0} 条投递记录`);
     } catch (cause) {
