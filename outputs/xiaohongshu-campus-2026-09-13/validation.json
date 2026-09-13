@@ -1,0 +1,1167 @@
+{
+  "source": "https://job.xiaohongshu.com/campus/position",
+  "scope": "所给入口下2027校园招聘全部岗位；不含REDstar、Ace和其他实习入口",
+  "list_started_at": "2026-09-13T09:48:54.862Z",
+  "list_finished_at": "2026-09-13T09:49:20.461Z",
+  "detail_finished_at": "2026-09-13T09:57:03.797Z",
+  "expected_count": 149,
+  "collected_count": 149,
+  "unique_count": 149,
+  "pages": 15,
+  "page_sizes": [
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    9
+  ],
+  "detail_fields_verified": 149,
+  "missing_required_fields": [],
+  "counts_by_direction": {
+    "研发": 75,
+    "算法": 38,
+    "非技术": 36
+  },
+  "counts_by_city": {
+    "上海市": 140,
+    "北京市": 129,
+    "杭州市": 51,
+    "深圳市": 12,
+    "新加坡": 6,
+    "武汉市": 1,
+    "广州市": 1
+  },
+  "city_count_note": "同一岗位多个城市分别计数，城市合计可能大于岗位总数",
+  "dokobot_files": 149,
+  "dokobot_title_present": 148,
+  "optional_fields_policy": "缺少明确结构化证据时留null；完整原文始终保留。",
+  "timing": {
+    "started_at": "2026-09-13T09:49:36.262Z",
+    "elapsed_seconds": 380.541,
+    "completed": 149,
+    "metrics": [
+      {
+        "id": "22047",
+        "attempt": 1,
+        "seconds": 6.404,
+        "verified_at": "2026-09-13T09:49:42.718Z",
+        "ok": true
+      },
+      {
+        "id": "22408",
+        "attempt": 1,
+        "seconds": 6.476,
+        "verified_at": "2026-09-13T09:49:42.755Z",
+        "ok": true
+      },
+      {
+        "id": "22407",
+        "attempt": 1,
+        "seconds": 6.695,
+        "verified_at": "2026-09-13T09:49:42.957Z",
+        "ok": true
+      },
+      {
+        "id": "22410",
+        "attempt": 1,
+        "seconds": 6.817,
+        "verified_at": "2026-09-13T09:49:43.110Z",
+        "ok": true
+      },
+      {
+        "id": "22045",
+        "attempt": 1,
+        "seconds": 6.29,
+        "verified_at": "2026-09-13T09:49:49.019Z",
+        "ok": true
+      },
+      {
+        "id": "22032",
+        "attempt": 1,
+        "seconds": 6.97,
+        "verified_at": "2026-09-13T09:49:49.726Z",
+        "ok": true
+      },
+      {
+        "id": "22033",
+        "attempt": 1,
+        "seconds": 8.286,
+        "verified_at": "2026-09-13T09:49:51.244Z",
+        "ok": true
+      },
+      {
+        "id": "22082",
+        "attempt": 1,
+        "seconds": 8.339,
+        "verified_at": "2026-09-13T09:49:51.450Z",
+        "ok": true
+      },
+      {
+        "id": "22052",
+        "attempt": 1,
+        "seconds": 6.616,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22052\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22048",
+        "attempt": 1,
+        "seconds": 4.99,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22048\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22054",
+        "attempt": 1,
+        "seconds": 8.252,
+        "verified_at": "2026-09-13T09:49:57.272Z",
+        "ok": true
+      },
+      {
+        "id": "22051",
+        "attempt": 1,
+        "seconds": 6.835,
+        "verified_at": "2026-09-13T09:49:58.081Z",
+        "ok": true
+      },
+      {
+        "id": "22052",
+        "attempt": 2,
+        "seconds": 6.622,
+        "verified_at": "2026-09-13T09:50:02.967Z",
+        "ok": true
+      },
+      {
+        "id": "22050",
+        "attempt": 1,
+        "seconds": 6.046,
+        "verified_at": "2026-09-13T09:50:03.319Z",
+        "ok": true
+      },
+      {
+        "id": "22048",
+        "attempt": 2,
+        "seconds": 8.218,
+        "verified_at": "2026-09-13T09:50:04.661Z",
+        "ok": true
+      },
+      {
+        "id": "22049",
+        "attempt": 1,
+        "seconds": 9.63,
+        "verified_at": "2026-09-13T09:50:07.712Z",
+        "ok": true
+      },
+      {
+        "id": "22053",
+        "attempt": 1,
+        "seconds": 5.531,
+        "verified_at": "2026-09-13T09:50:08.499Z",
+        "ok": true
+      },
+      {
+        "id": "22044",
+        "attempt": 1,
+        "seconds": 6.823,
+        "verified_at": "2026-09-13T09:50:10.143Z",
+        "ok": true
+      },
+      {
+        "id": "22043",
+        "attempt": 1,
+        "seconds": 7.938,
+        "verified_at": "2026-09-13T09:50:12.600Z",
+        "ok": true
+      },
+      {
+        "id": "22042",
+        "attempt": 1,
+        "seconds": 9.369,
+        "verified_at": "2026-09-13T09:50:17.082Z",
+        "ok": true
+      },
+      {
+        "id": "22037",
+        "attempt": 1,
+        "seconds": 9.286,
+        "verified_at": "2026-09-13T09:50:17.786Z",
+        "ok": true
+      },
+      {
+        "id": "22036",
+        "attempt": 1,
+        "seconds": 7.736,
+        "verified_at": "2026-09-13T09:50:17.880Z",
+        "ok": true
+      },
+      {
+        "id": "22046",
+        "attempt": 1,
+        "seconds": 6.612,
+        "verified_at": "2026-09-13T09:50:19.213Z",
+        "ok": true
+      },
+      {
+        "id": "21008",
+        "attempt": 1,
+        "seconds": 5.251,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/21008\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22035",
+        "attempt": 1,
+        "seconds": 7.492,
+        "verified_at": "2026-09-13T09:50:24.575Z",
+        "ok": true
+      },
+      {
+        "id": "22031",
+        "attempt": 1,
+        "seconds": 6.719,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22031\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22034",
+        "attempt": 1,
+        "seconds": 7.704,
+        "verified_at": "2026-09-13T09:50:25.491Z",
+        "ok": true
+      },
+      {
+        "id": "21008",
+        "attempt": 2,
+        "seconds": 6.143,
+        "verified_at": "2026-09-13T09:50:30.609Z",
+        "ok": true
+      },
+      {
+        "id": "22031",
+        "attempt": 2,
+        "seconds": 7.289,
+        "verified_at": "2026-09-13T09:50:31.890Z",
+        "ok": true
+      },
+      {
+        "id": "21007",
+        "attempt": 1,
+        "seconds": 6.994,
+        "verified_at": "2026-09-13T09:50:32.486Z",
+        "ok": true
+      },
+      {
+        "id": "21005",
+        "attempt": 1,
+        "seconds": 8.322,
+        "verified_at": "2026-09-13T09:50:32.897Z",
+        "ok": true
+      },
+      {
+        "id": "22163",
+        "attempt": 1,
+        "seconds": 5.438,
+        "verified_at": "2026-09-13T09:50:37.329Z",
+        "ok": true
+      },
+      {
+        "id": "22266",
+        "attempt": 1,
+        "seconds": 5.225,
+        "verified_at": "2026-09-13T09:50:37.713Z",
+        "ok": true
+      },
+      {
+        "id": "22026",
+        "attempt": 1,
+        "seconds": 8.672,
+        "verified_at": "2026-09-13T09:50:39.282Z",
+        "ok": true
+      },
+      {
+        "id": "22041",
+        "attempt": 1,
+        "seconds": 9.213,
+        "verified_at": "2026-09-13T09:50:42.111Z",
+        "ok": true
+      },
+      {
+        "id": "22219",
+        "attempt": 1,
+        "seconds": 7.677,
+        "verified_at": "2026-09-13T09:50:45.007Z",
+        "ok": true
+      },
+      {
+        "id": "22220",
+        "attempt": 1,
+        "seconds": 10.897,
+        "verified_at": "2026-09-13T09:50:48.612Z",
+        "ok": true
+      },
+      {
+        "id": "22149",
+        "attempt": 1,
+        "seconds": 7.764,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22149\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22177",
+        "attempt": 1,
+        "seconds": 11.799,
+        "verified_at": "2026-09-13T09:50:51.082Z",
+        "ok": true
+      },
+      {
+        "id": "22150",
+        "attempt": 1,
+        "seconds": 7.266,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22150\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22022",
+        "attempt": 1,
+        "seconds": 9.942,
+        "verified_at": "2026-09-13T09:50:58.555Z",
+        "ok": true
+      },
+      {
+        "id": "22149",
+        "attempt": 2,
+        "seconds": 8.995,
+        "verified_at": "2026-09-13T09:50:58.872Z",
+        "ok": true
+      },
+      {
+        "id": "22020",
+        "attempt": 1,
+        "seconds": 7.901,
+        "verified_at": "2026-09-13T09:50:58.984Z",
+        "ok": true
+      },
+      {
+        "id": "22150",
+        "attempt": 2,
+        "seconds": 8.573,
+        "verified_at": "2026-09-13T09:51:00.848Z",
+        "ok": true
+      },
+      {
+        "id": "22079",
+        "attempt": 1,
+        "seconds": 8.822,
+        "verified_at": "2026-09-13T09:51:07.695Z",
+        "ok": true
+      },
+      {
+        "id": "22078",
+        "attempt": 1,
+        "seconds": 8.733,
+        "verified_at": "2026-09-13T09:51:07.718Z",
+        "ok": true
+      },
+      {
+        "id": "22080",
+        "attempt": 1,
+        "seconds": 9.529,
+        "verified_at": "2026-09-13T09:51:08.086Z",
+        "ok": true
+      },
+      {
+        "id": "22018",
+        "attempt": 1,
+        "seconds": 10.173,
+        "verified_at": "2026-09-13T09:51:11.024Z",
+        "ok": true
+      },
+      {
+        "id": "22000",
+        "attempt": 1,
+        "seconds": 8.775,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22000\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22021",
+        "attempt": 1,
+        "seconds": 9.687,
+        "verified_at": "2026-09-13T09:51:17.383Z",
+        "ok": true
+      },
+      {
+        "id": "22179",
+        "attempt": 1,
+        "seconds": 10.382,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22179\n\n职位列表 [1]\n---\n工作地点：- 加入志愿清单 投递简历\n---\n工"
+      },
+      {
+        "id": "22274",
+        "attempt": 1,
+        "seconds": 11.634,
+        "verified_at": "2026-09-13T09:51:22.659Z",
+        "ok": true
+      },
+      {
+        "id": "22267",
+        "attempt": 1,
+        "seconds": 8.303,
+        "verified_at": "2026-09-13T09:51:25.687Z",
+        "ok": true
+      },
+      {
+        "id": "22000",
+        "attempt": 2,
+        "seconds": 10.654,
+        "verified_at": "2026-09-13T09:51:27.148Z",
+        "ok": true
+      },
+      {
+        "id": "22179",
+        "attempt": 2,
+        "seconds": 9.77,
+        "verified_at": "2026-09-13T09:51:28.239Z",
+        "ok": true
+      },
+      {
+        "id": "22063",
+        "attempt": 1,
+        "seconds": 10.609,
+        "verified_at": "2026-09-13T09:51:33.269Z",
+        "ok": true
+      },
+      {
+        "id": "22064",
+        "attempt": 1,
+        "seconds": 9.734,
+        "verified_at": "2026-09-13T09:51:35.422Z",
+        "ok": true
+      },
+      {
+        "id": "21966",
+        "attempt": 1,
+        "seconds": 9.69,
+        "verified_at": "2026-09-13T09:51:36.839Z",
+        "ok": true
+      },
+      {
+        "id": "21969",
+        "attempt": 1,
+        "seconds": 10.101,
+        "verified_at": "2026-09-13T09:51:38.341Z",
+        "ok": true
+      },
+      {
+        "id": "21907",
+        "attempt": 1,
+        "seconds": 10.428,
+        "verified_at": "2026-09-13T09:51:43.698Z",
+        "ok": true
+      },
+      {
+        "id": "21936",
+        "attempt": 1,
+        "seconds": 9.439,
+        "verified_at": "2026-09-13T09:51:44.862Z",
+        "ok": true
+      },
+      {
+        "id": "21999",
+        "attempt": 1,
+        "seconds": 11.148,
+        "verified_at": "2026-09-13T09:51:47.988Z",
+        "ok": true
+      },
+      {
+        "id": "21998",
+        "attempt": 1,
+        "seconds": 10.852,
+        "verified_at": "2026-09-13T09:51:49.194Z",
+        "ok": true
+      },
+      {
+        "id": "22019",
+        "attempt": 1,
+        "seconds": 9.257,
+        "verified_at": "2026-09-13T09:51:54.120Z",
+        "ok": true
+      },
+      {
+        "id": "22183",
+        "attempt": 1,
+        "seconds": 12.478,
+        "verified_at": "2026-09-13T09:51:56.177Z",
+        "ok": true
+      },
+      {
+        "id": "21868",
+        "attempt": 1,
+        "seconds": 8.433,
+        "verified_at": "2026-09-13T09:51:57.628Z",
+        "ok": true
+      },
+      {
+        "id": "22001",
+        "attempt": 1,
+        "seconds": 11.665,
+        "verified_at": "2026-09-13T09:51:59.654Z",
+        "ok": true
+      },
+      {
+        "id": "22025",
+        "attempt": 1,
+        "seconds": 9.241,
+        "verified_at": "2026-09-13T09:52:03.363Z",
+        "ok": true
+      },
+      {
+        "id": "22181",
+        "attempt": 1,
+        "seconds": 9.049,
+        "verified_at": "2026-09-13T09:52:06.678Z",
+        "ok": true
+      },
+      {
+        "id": "22074",
+        "attempt": 1,
+        "seconds": 10.68,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22074\n\n职位列表 [1] 【2027校招】Agent Harness工程师 - 企"
+      },
+      {
+        "id": "22157",
+        "attempt": 1,
+        "seconds": 11.488,
+        "verified_at": "2026-09-13T09:52:11.143Z",
+        "ok": true
+      },
+      {
+        "id": "22192",
+        "attempt": 1,
+        "seconds": 9.927,
+        "verified_at": "2026-09-13T09:52:13.291Z",
+        "ok": true
+      },
+      {
+        "id": "22024",
+        "attempt": 1,
+        "seconds": 7.829,
+        "verified_at": "2026-09-13T09:52:14.508Z",
+        "ok": true
+      },
+      {
+        "id": "22074",
+        "attempt": 2,
+        "seconds": 9.051,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22074\n\n职位列表 [1] 【2027校招】Agent Harness工程师 - 企"
+      },
+      {
+        "id": "22023",
+        "attempt": 1,
+        "seconds": 10.225,
+        "verified_at": "2026-09-13T09:52:21.369Z",
+        "ok": true
+      },
+      {
+        "id": "22011",
+        "attempt": 1,
+        "seconds": 9.945,
+        "verified_at": "2026-09-13T09:52:23.238Z",
+        "ok": true
+      },
+      {
+        "id": "22010",
+        "attempt": 1,
+        "seconds": 10.014,
+        "verified_at": "2026-09-13T09:52:24.523Z",
+        "ok": true
+      },
+      {
+        "id": "22074",
+        "attempt": 3,
+        "seconds": 8.81,
+        "ok": false,
+        "error": "Error: Missing title or qualifications: # 小红书校园招聘\n> https://job.xiaohongshu.com/campus/position/22074\n\n职位列表 [1] 【2027校招】Agent Harness工程师 - 企"
+      },
+      {
+        "id": "22009",
+        "attempt": 1,
+        "seconds": 10.216,
+        "verified_at": "2026-09-13T09:52:31.586Z",
+        "ok": true
+      },
+      {
+        "id": "22007",
+        "attempt": 1,
+        "seconds": 9.633,
+        "verified_at": "2026-09-13T09:52:32.872Z",
+        "ok": true
+      },
+      {
+        "id": "21486",
+        "attempt": 1,
+        "seconds": 8.865,
+        "verified_at": "2026-09-13T09:52:33.587Z",
+        "ok": true
+      },
+      {
+        "id": "22006",
+        "attempt": 1,
+        "seconds": 10.951,
+        "verified_at": "2026-09-13T09:52:35.475Z",
+        "ok": true
+      },
+      {
+        "id": "21829",
+        "attempt": 1,
+        "seconds": 8.378,
+        "verified_at": "2026-09-13T09:52:41.252Z",
+        "ok": true
+      },
+      {
+        "id": "22077",
+        "attempt": 1,
+        "seconds": 10.063,
+        "verified_at": "2026-09-13T09:52:41.650Z",
+        "ok": true
+      },
+      {
+        "id": "22030",
+        "attempt": 1,
+        "seconds": 8.399,
+        "verified_at": "2026-09-13T09:52:43.875Z",
+        "ok": true
+      },
+      {
+        "id": "22072",
+        "attempt": 1,
+        "seconds": 11.55,
+        "verified_at": "2026-09-13T09:52:45.138Z",
+        "ok": true
+      },
+      {
+        "id": "22071",
+        "attempt": 1,
+        "seconds": 7.362,
+        "verified_at": "2026-09-13T09:52:48.615Z",
+        "ok": true
+      },
+      {
+        "id": "22029",
+        "attempt": 1,
+        "seconds": 9.07,
+        "verified_at": "2026-09-13T09:52:50.721Z",
+        "ok": true
+      },
+      {
+        "id": "20999",
+        "attempt": 1,
+        "seconds": 9.742,
+        "verified_at": "2026-09-13T09:52:53.619Z",
+        "ok": true
+      },
+      {
+        "id": "21000",
+        "attempt": 1,
+        "seconds": 10.055,
+        "verified_at": "2026-09-13T09:52:55.195Z",
+        "ok": true
+      },
+      {
+        "id": "21001",
+        "attempt": 1,
+        "seconds": 9.956,
+        "verified_at": "2026-09-13T09:52:58.572Z",
+        "ok": true
+      },
+      {
+        "id": "22038",
+        "attempt": 1,
+        "seconds": 10.662,
+        "verified_at": "2026-09-13T09:53:01.384Z",
+        "ok": true
+      },
+      {
+        "id": "22073",
+        "attempt": 1,
+        "seconds": 8.515,
+        "verified_at": "2026-09-13T09:53:02.135Z",
+        "ok": true
+      },
+      {
+        "id": "21293",
+        "attempt": 1,
+        "seconds": 7.545,
+        "verified_at": "2026-09-13T09:53:02.741Z",
+        "ok": true
+      },
+      {
+        "id": "22004",
+        "attempt": 1,
+        "seconds": 10.442,
+        "verified_at": "2026-09-13T09:53:09.015Z",
+        "ok": true
+      },
+      {
+        "id": "21014",
+        "attempt": 1,
+        "seconds": 8.411,
+        "verified_at": "2026-09-13T09:53:10.547Z",
+        "ok": true
+      },
+      {
+        "id": "22027",
+        "attempt": 1,
+        "seconds": 9.339,
+        "verified_at": "2026-09-13T09:53:10.724Z",
+        "ok": true
+      },
+      {
+        "id": "21013",
+        "attempt": 1,
+        "seconds": 8.124,
+        "verified_at": "2026-09-13T09:53:10.866Z",
+        "ok": true
+      },
+      {
+        "id": "21003",
+        "attempt": 1,
+        "seconds": 8.631,
+        "verified_at": "2026-09-13T09:53:17.647Z",
+        "ok": true
+      },
+      {
+        "id": "21270",
+        "attempt": 1,
+        "seconds": 7.402,
+        "verified_at": "2026-09-13T09:53:17.950Z",
+        "ok": true
+      },
+      {
+        "id": "21010",
+        "attempt": 1,
+        "seconds": 9.384,
+        "verified_at": "2026-09-13T09:53:20.109Z",
+        "ok": true
+      },
+      {
+        "id": "21693",
+        "attempt": 1,
+        "seconds": 9.563,
+        "verified_at": "2026-09-13T09:53:20.430Z",
+        "ok": true
+      },
+      {
+        "id": "21269",
+        "attempt": 1,
+        "seconds": 11.581,
+        "verified_at": "2026-09-13T09:53:29.229Z",
+        "ok": true
+      },
+      {
+        "id": "21011",
+        "attempt": 1,
+        "seconds": 11.782,
+        "verified_at": "2026-09-13T09:53:29.734Z",
+        "ok": true
+      },
+      {
+        "id": "22070",
+        "attempt": 1,
+        "seconds": 10.901,
+        "verified_at": "2026-09-13T09:53:31.012Z",
+        "ok": true
+      },
+      {
+        "id": "22039",
+        "attempt": 1,
+        "seconds": 11.743,
+        "verified_at": "2026-09-13T09:53:32.174Z",
+        "ok": true
+      },
+      {
+        "id": "22068",
+        "attempt": 1,
+        "seconds": 7.433,
+        "verified_at": "2026-09-13T09:53:36.663Z",
+        "ok": true
+      },
+      {
+        "id": "22028",
+        "attempt": 1,
+        "seconds": 10.008,
+        "verified_at": "2026-09-13T09:53:39.743Z",
+        "ok": true
+      },
+      {
+        "id": "22002",
+        "attempt": 1,
+        "seconds": 9.042,
+        "verified_at": "2026-09-13T09:53:41.217Z",
+        "ok": true
+      },
+      {
+        "id": "22081",
+        "attempt": 1,
+        "seconds": 10.328,
+        "verified_at": "2026-09-13T09:53:41.341Z",
+        "ok": true
+      },
+      {
+        "id": "22015",
+        "attempt": 1,
+        "seconds": 9.246,
+        "verified_at": "2026-09-13T09:53:45.910Z",
+        "ok": true
+      },
+      {
+        "id": "22198",
+        "attempt": 1,
+        "seconds": 8.706,
+        "verified_at": "2026-09-13T09:53:49.924Z",
+        "ok": true
+      },
+      {
+        "id": "22076",
+        "attempt": 1,
+        "seconds": 10.602,
+        "verified_at": "2026-09-13T09:53:50.346Z",
+        "ok": true
+      },
+      {
+        "id": "22197",
+        "attempt": 1,
+        "seconds": 10.598,
+        "verified_at": "2026-09-13T09:53:51.940Z",
+        "ok": true
+      },
+      {
+        "id": "22196",
+        "attempt": 1,
+        "seconds": 11.428,
+        "verified_at": "2026-09-13T09:53:57.339Z",
+        "ok": true
+      },
+      {
+        "id": "22160",
+        "attempt": 1,
+        "seconds": 8.415,
+        "verified_at": "2026-09-13T09:53:58.340Z",
+        "ok": true
+      },
+      {
+        "id": "22191",
+        "attempt": 1,
+        "seconds": 12.093,
+        "verified_at": "2026-09-13T09:54:02.450Z",
+        "ok": true
+      },
+      {
+        "id": "22180",
+        "attempt": 1,
+        "seconds": 10.879,
+        "verified_at": "2026-09-13T09:54:02.820Z",
+        "ok": true
+      },
+      {
+        "id": "22156",
+        "attempt": 1,
+        "seconds": 9.615,
+        "verified_at": "2026-09-13T09:54:06.955Z",
+        "ok": true
+      },
+      {
+        "id": "22165",
+        "attempt": 1,
+        "seconds": 10.725,
+        "verified_at": "2026-09-13T09:54:09.066Z",
+        "ok": true
+      },
+      {
+        "id": "20734",
+        "attempt": 1,
+        "seconds": 8.656,
+        "verified_at": "2026-09-13T09:54:11.478Z",
+        "ok": true
+      },
+      {
+        "id": "22069",
+        "attempt": 1,
+        "seconds": 10.758,
+        "verified_at": "2026-09-13T09:54:13.209Z",
+        "ok": true
+      },
+      {
+        "id": "22067",
+        "attempt": 1,
+        "seconds": 9.956,
+        "verified_at": "2026-09-13T09:54:16.913Z",
+        "ok": true
+      },
+      {
+        "id": "22062",
+        "attempt": 1,
+        "seconds": 10.913,
+        "verified_at": "2026-09-13T09:54:19.980Z",
+        "ok": true
+      },
+      {
+        "id": "21992",
+        "attempt": 1,
+        "seconds": 9.336,
+        "verified_at": "2026-09-13T09:54:20.816Z",
+        "ok": true
+      },
+      {
+        "id": "21991",
+        "attempt": 1,
+        "seconds": 9.77,
+        "verified_at": "2026-09-13T09:54:22.981Z",
+        "ok": true
+      },
+      {
+        "id": "22061",
+        "attempt": 1,
+        "seconds": 11.188,
+        "verified_at": "2026-09-13T09:54:28.102Z",
+        "ok": true
+      },
+      {
+        "id": "21985",
+        "attempt": 1,
+        "seconds": 10.51,
+        "verified_at": "2026-09-13T09:54:30.491Z",
+        "ok": true
+      },
+      {
+        "id": "21986",
+        "attempt": 1,
+        "seconds": 9.877,
+        "verified_at": "2026-09-13T09:54:30.694Z",
+        "ok": true
+      },
+      {
+        "id": "22008",
+        "attempt": 1,
+        "seconds": 10.181,
+        "verified_at": "2026-09-13T09:54:33.164Z",
+        "ok": true
+      },
+      {
+        "id": "20904",
+        "attempt": 1,
+        "seconds": 8.428,
+        "verified_at": "2026-09-13T09:54:38.920Z",
+        "ok": true
+      },
+      {
+        "id": "21002",
+        "attempt": 1,
+        "seconds": 11.662,
+        "verified_at": "2026-09-13T09:54:39.765Z",
+        "ok": true
+      },
+      {
+        "id": "21009",
+        "attempt": 1,
+        "seconds": 10.229,
+        "verified_at": "2026-09-13T09:54:40.924Z",
+        "ok": true
+      },
+      {
+        "id": "21006",
+        "attempt": 1,
+        "seconds": 10.752,
+        "verified_at": "2026-09-13T09:54:43.917Z",
+        "ok": true
+      },
+      {
+        "id": "22164",
+        "attempt": 1,
+        "seconds": 12.274,
+        "verified_at": "2026-09-13T09:54:51.195Z",
+        "ok": true
+      },
+      {
+        "id": "22040",
+        "attempt": 1,
+        "seconds": 12.228,
+        "verified_at": "2026-09-13T09:54:51.994Z",
+        "ok": true
+      },
+      {
+        "id": "22016",
+        "attempt": 1,
+        "seconds": 12.609,
+        "verified_at": "2026-09-13T09:54:53.535Z",
+        "ok": true
+      },
+      {
+        "id": "22017",
+        "attempt": 1,
+        "seconds": 11.627,
+        "verified_at": "2026-09-13T09:54:55.545Z",
+        "ok": true
+      },
+      {
+        "id": "22014",
+        "attempt": 1,
+        "seconds": 14.697,
+        "verified_at": "2026-09-13T09:55:05.893Z",
+        "ok": true
+      },
+      {
+        "id": "22012",
+        "attempt": 1,
+        "seconds": 14.913,
+        "verified_at": "2026-09-13T09:55:08.449Z",
+        "ok": true
+      },
+      {
+        "id": "22013",
+        "attempt": 1,
+        "seconds": 17.113,
+        "verified_at": "2026-09-13T09:55:09.108Z",
+        "ok": true
+      },
+      {
+        "id": "22003",
+        "attempt": 1,
+        "seconds": 13.589,
+        "verified_at": "2026-09-13T09:55:09.135Z",
+        "ok": true
+      },
+      {
+        "id": "22162",
+        "attempt": 1,
+        "seconds": 10.895,
+        "verified_at": "2026-09-13T09:55:16.789Z",
+        "ok": true
+      },
+      {
+        "id": "22161",
+        "attempt": 1,
+        "seconds": 9.355,
+        "verified_at": "2026-09-13T09:55:17.805Z",
+        "ok": true
+      },
+      {
+        "id": "22159",
+        "attempt": 1,
+        "seconds": 10.47,
+        "verified_at": "2026-09-13T09:55:19.579Z",
+        "ok": true
+      },
+      {
+        "id": "22158",
+        "attempt": 1,
+        "seconds": 13.082,
+        "verified_at": "2026-09-13T09:55:22.218Z",
+        "ok": true
+      },
+      {
+        "id": "22152",
+        "attempt": 1,
+        "seconds": 12.831,
+        "verified_at": "2026-09-13T09:55:29.621Z",
+        "ok": true
+      },
+      {
+        "id": "22151",
+        "attempt": 1,
+        "seconds": 12.541,
+        "verified_at": "2026-09-13T09:55:30.347Z",
+        "ok": true
+      },
+      {
+        "id": "21318",
+        "attempt": 1,
+        "seconds": 11.233,
+        "verified_at": "2026-09-13T09:55:30.813Z",
+        "ok": true
+      },
+      {
+        "id": "22145",
+        "attempt": 1,
+        "seconds": 11.647,
+        "verified_at": "2026-09-13T09:55:33.866Z",
+        "ok": true
+      },
+      {
+        "id": "22065",
+        "attempt": 1,
+        "seconds": 9.111,
+        "verified_at": "2026-09-13T09:55:38.733Z",
+        "ok": true
+      },
+      {
+        "id": "22066",
+        "attempt": 1,
+        "seconds": 8.511,
+        "verified_at": "2026-09-13T09:55:38.860Z",
+        "ok": true
+      },
+      {
+        "id": "22059",
+        "attempt": 1,
+        "seconds": 15.063,
+        "verified_at": "2026-09-13T09:55:45.877Z",
+        "ok": true
+      },
+      {
+        "id": "22060",
+        "attempt": 1,
+        "seconds": 13.488,
+        "verified_at": "2026-09-13T09:55:47.356Z",
+        "ok": true
+      },
+      {
+        "id": "22057",
+        "attempt": 1,
+        "seconds": 12.456,
+        "verified_at": "2026-09-13T09:55:51.318Z",
+        "ok": true
+      },
+      {
+        "id": "22058",
+        "attempt": 1,
+        "seconds": 12.592,
+        "verified_at": "2026-09-13T09:55:51.326Z",
+        "ok": true
+      },
+      {
+        "id": "22055",
+        "attempt": 1,
+        "seconds": 10.009,
+        "verified_at": "2026-09-13T09:55:55.888Z",
+        "ok": true
+      },
+      {
+        "id": "22056",
+        "attempt": 1,
+        "seconds": 9.444,
+        "verified_at": "2026-09-13T09:55:56.802Z",
+        "ok": true
+      }
+    ]
+  },
+  "dokobot_title_present_normalized": 149,
+  "dokobot_title_normalization_note": "22074 原标题含连续两个空格，dokobot显示时合并为空格；不是岗位缺失。",
+  "manual_dokobot_retries_completed": [
+    "22074",
+    "22411"
+  ]
+}

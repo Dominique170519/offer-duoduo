@@ -1,0 +1,14 @@
+{
+  "url": "https://job.xiaohongshu.com/campus/position/22074",
+  "title": "【2027校招】Agent Harness工程师  - 企业智能方向",
+  "responsibilities": "我们正在建设面向全公司的Enterprise Agentic Cowork Workspace，希望寻找对 Agent Runtime、Agent Harness、Agent Serverless、Agent Observability 有热情的工程师，一起打造小红书企业级 Agent 操作系统。加入我们一起打造行业领先的 Agent Infra 工程实践和技术影响力\n工作职责\n1、建设企业级 Agent Harness / Agent Runtime，支撑会话管理、任务执行、工具调用和状态持久化。\n2、建设 Agent Serverless 基础设施，实现按需启动、弹性伸缩和生命周期管理。\n3、建设 Agent 可观测体系，覆盖 Trace/ Log/ Metric/ Event 全链路，支持调试回放和故障诊断。\n4、建设 Agent 身份认证与权限治理能力，解决权限穿透、最小授权和安全边界问题。\n5、建设 Multi-Agent 通信与协作机制，负责任务分发、消息传递和 SuperAgent 路由编排。\n6、参与 OpenClaw/Claude Code/Hermes/LangGraph/MCP 等开源 Agent 框架研究与改造，参与沉淀小红书自研 Agent Infra 技术体系。",
+  "qualifications": "任职资格\n1、本科学历及以上，计算机相关专业优先。\n2、熟悉 TypeScript/Python/Go/Java/Rust 等任意一种后端语言。\n3、具备较强的系统工程能力，理解服务治理、任务调度、权限系统、可观测性、分布式系统等基础能力。\n4、对 LLM Agent、Tool Calling、MCP、Agent Runtime、Coding Agent、Multi-Agent 等方向有深入兴趣或实践经验。\n5、具备优秀的问题抽象能力，能够把复杂业务问题沉淀为平台化、框架化、基础设施化能力。\n6、有较强的 ownership，愿意面对新问题、定义新边界，而不是只实现明确需求。",
+  "raw_text": "【2027校招】Agent Harness工程师 - 企业智能方向\n工作地点：北京市，上海市，杭州市\n项目：2027 校园招聘\n职位方向：研发\n子方向：大模型Infra\n加入志愿清单\n投递简历\n每人最多可投递 1 个职位方向中的 2 个子方向，最多 5 个职位；投递后，职位方向不可更换，志愿将按顺序依次流转\n工作职责\n我们正在建设面向全公司的Enterprise Agentic Cowork Workspace，希望寻找对 Agent Runtime、Agent Harness、Agent Serverless、Agent Observability 有热情的工程师，一起打造小红书企业级 Agent 操作系统。加入我们一起打造行业领先的 Agent Infra 工程实践和技术影响力\n工作职责\n1、建设企业级 Agent Harness / Agent Runtime，支撑会话管理、任务执行、工具调用和状态持久化。\n2、建设 Agent Serverless 基础设施，实现按需启动、弹性伸缩和生命周期管理。\n3、建设 Agent 可观测体系，覆盖 Trace/ Log/ Metric/ Event 全链路，支持调试回放和故障诊断。\n4、建设 Agent 身份认证与权限治理能力，解决权限穿透、最小授权和安全边界问题。\n5、建设 Multi-Agent 通信与协作机制，负责任务分发、消息传递和 SuperAgent 路由编排。\n6、参与 OpenClaw/Claude Code/Hermes/LangGraph/MCP 等开源 Agent 框架研究与改造，参与沉淀小红书自研 Agent Infra 技术体系。\n任职资格\n任职资格\n1、本科学历及以上，计算机相关专业优先。\n2、熟悉 TypeScript/Python/Go/Java/Rust 等任意一种后端语言。\n3、具备较强的系统工程能力，理解服务治理、任务调度、权限系统、可观测性、分布式系统等基础能力。\n4、对 LLM Agent、Tool Calling、MCP、Agent Runtime、Coding Agent、Multi-Agent 等方向有深入兴趣或实践经验。\n5、具备优秀的问题抽象能力，能够把复杂业务问题沉淀为平台化、框架化、基础设施化能力。\n6、有较强的 ownership，愿意面对新问题、定义新边界，而不是只实现明确需求。",
+  "meta": [
+    "工作地点：北京市，上海市，杭州市",
+    "项目：2027 校园招聘",
+    "职位方向：研发",
+    "子方向：大模型Infra"
+  ],
+  "verified_at": "2026-09-13T09:55:37.338Z"
+}

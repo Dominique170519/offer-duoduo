@@ -20,9 +20,10 @@ test("application-first and web-first share facts without sharing private data o
   await build({ entryPoints: [join(root, "infrastructure/storage/storage.ts")], outfile: out, bundle: true, format: "esm", platform: "node", alias: { "@": root }, logLevel: "silent" });
   const savedChrome = globalThis.chrome;
   const data = {};
+  let storageWrites = 0;
   globalThis.chrome = { storage: { local: {
     async get(keys) { return structuredClone(keys === null ? data : Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter(key => key in data).map(key => [key, data[key]]))); },
-    async set(values) { Object.assign(data, structuredClone(values)); },
+    async set(values) { storageWrites += 1; Object.assign(data, structuredClone(values)); },
     async remove(keys) { for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key]; }
   } } };
   t.after(() => { globalThis.chrome = savedChrome; });
@@ -39,6 +40,17 @@ test("application-first and web-first share facts without sharing private data o
   assert.equal(JSON.stringify(data[storage.PROFILE_KEY]).includes("LOCAL_"), false);
   assert.equal((await storage.loadProfile()).idNumber, "LOCAL_ID");
   assert.equal((await storage.loadProfile()).experiences[0].refereeContact, "LOCAL_REFEREE");
+
+  // Chrome serializes dictionaries with its own key order. Reading an already
+  // migrated profile must not write again and recursively trigger onChanged.
+  data[storage.RESUMES_KEY] = JSON.parse(JSON.stringify(data[storage.RESUMES_KEY], (_key, value) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]))
+      : value));
+  const writesBeforeRead = storageWrites;
+  await storage.loadResumeLibrary();
+  await storage.loadResumeLibrary();
+  assert.equal(storageWrites, writesBeforeRead, "loading normalized Chrome storage must be read-only");
 
   // A web edit arrives after initial acknowledgement; it changes a shared fact
   // and independently rewrites the resume description.

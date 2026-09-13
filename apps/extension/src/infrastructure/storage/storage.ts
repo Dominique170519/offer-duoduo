@@ -1,3 +1,4 @@
+import { stableJson } from "@/shared/stableJson";
 import {
   inferRecruitmentType,
   resolveProfileExperienceKind,
@@ -877,7 +878,7 @@ async function readStoredResumeLibrary(): Promise<StoredResume[] | undefined> {
 export async function loadResumeLibrary(): Promise<StoredResume[]> {
   const stored = await readStoredResumeLibrary();
   if (stored) {
-    if (stored.some(resume => JSON.stringify(resume.profile) !== JSON.stringify(toCloudResumeProfile(resume.profile)))) await saveResumeLibrary(stored);
+    if (stored.some(resume => stableJson(resume.profile) !== stableJson(toCloudResumeProfile(resume.profile)))) await saveResumeLibrary(stored);
     const archive = await loadLocalApplicationProfile();
     return migrateResumeLibrary(stored).map(resume => ({ ...resume, profile: composeApplicationProfile(resume.profile, archive) }));
   }

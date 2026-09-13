@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { stableJson } from "@/shared/stableJson";
 import {
   ArrowLeft,
   ArrowRight,
@@ -228,10 +229,16 @@ export default function ResumeEditor({
   const [undoToast, setUndoToast] = useState<UndoToastState | null>(null);
   const undoTimerRef = useRef<number | undefined>(undefined);
   const isDirtyRef = useRef(false);
+  const editRevisionRef = useRef(0);
+  const loadedResumeRef = useRef({ id: resume.id, content: "" });
   const autoSaveTimerRef = useRef<number | undefined>(undefined);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const content = stableJson([resume.profile, resume.company, resume.position]);
+    const sameResume = loadedResumeRef.current.id === resume.id;
+    if (sameResume && (isDirtyRef.current || loadedResumeRef.current.content === content)) return;
+    loadedResumeRef.current = { id: resume.id, content };
     setDraft(resume.profile);
     setCompany(resume.company || "");
     setPosition(resume.position || "");
@@ -248,6 +255,7 @@ export default function ResumeEditor({
   }, [draft]);
 
   const markDirty = () => {
+    editRevisionRef.current += 1;
     isDirtyRef.current = true;
     setSaved(false);
     setAutoSaved(false);
@@ -337,6 +345,8 @@ export default function ResumeEditor({
 
   const save = async (isAuto = false) => {
     if (saving) return;
+    const savedRevision = editRevisionRef.current;
+    const savedResumeId = resume.id;
     setSaving(true);
     try {
       const metadata = Object.fromEntries(
@@ -357,6 +367,7 @@ export default function ResumeEditor({
             position.trim() !== (resume.position || "").trim()
         }
       );
+      if (loadedResumeRef.current.id !== savedResumeId || editRevisionRef.current !== savedRevision) return;
       setSaved(true);
       if (isAuto) {
         setAutoSaved(true);

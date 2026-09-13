@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+import { stableJson } from "@/shared/stableJson";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -288,7 +289,7 @@ export default function ResumeManagerApp() {
         setResumeFixedProfile(fixedProfile);
         setLibraryCollapsed(libraryUi.collapsed);
         setLibraryPinned(libraryUi.pinned);
-        setResumes(library);
+        setResumes(current => stableJson(current) === stableJson(library) ? current : library);
         setActiveId(currentId);
         setSelectedId(currentId);
         setLoading(false);
@@ -330,7 +331,7 @@ export default function ResumeManagerApp() {
           loadBaseProfile()
         ]);
         const currentId = resolveActiveResumeId(library, storedActiveId);
-        setResumes(library);
+        setResumes(current => stableJson(current) === stableJson(library) ? current : library);
         setActiveId(currentId);
         setSelectedId((current) => library.some((resume) => resume.id === current) ? current : currentId);
         if (fixedProfile) setResumeFixedProfile(fixedProfile);
