@@ -1119,13 +1119,18 @@ export class PostgresStore implements OfferFlowStore {
 
   async createTailorTask(userId: string, request: CreateTailorTaskRequest): Promise<{ task: TailorTask; version: ResumeVersionRecord }> {
     request = sanitizeTailorTaskRequest(request);
+    const source = await this.getResumeTemplate(userId, request.sourceResumeId);
+    if (request.sourceRevision !== undefined && (!source || source.revision !== request.sourceRevision || JSON.stringify(toCloudResumeProfile(source.profile)) !== JSON.stringify(toCloudResumeProfile(request.sourceProfile)))) {
+      throw new StoreError("RESUME_TEMPLATE_CONFLICT", "母版已更新，请同步后重新生成岗位简历", 409);
+    }
     const now = new Date().toISOString();
     const taskId = randomUUID();
     const versionId = randomUUID();
     const document = createResumeDocument({ id: randomUUID(), title: `${request.job.company} · ${request.job.position}`, profile: request.sourceProfile, assets: request.sourceAssets, portraitAssetId: request.sourcePortraitAssetId, sourceEvidence: request.sourceEvidence, now });
+    if (source?.document) document.template = structuredClone(source.document.template);
     document.profile.targetRole = request.job.position;
-    const version: ResumeVersionRecord = { revision: 1, version: { id: versionId, tailorTaskId: taskId, sourceResumeId: request.sourceResumeId, sourceResumeName: request.sourceResumeName, applicationId: request.applicationId, company: request.job.company, position: request.job.position, document, status: "draft", createdAt: now, updatedAt: now } };
-    const task: TailorTask = { id: taskId, sourceResumeId: request.sourceResumeId, applicationId: request.applicationId, job: structuredClone(request.job), sourceEvidence: request.sourceEvidence ? structuredClone(request.sourceEvidence) : undefined, versionId, status: "draft", createdAt: now, updatedAt: now };
+    const version: ResumeVersionRecord = { revision: 1, version: { id: versionId, tailorTaskId: taskId, sourceResumeId: request.sourceResumeId, sourceResumeName: request.sourceResumeName, sourceRevision: source?.revision, jobSnapshot: structuredClone(request.job), applicationId: request.applicationId, company: request.job.company, position: request.job.position, document, status: "draft", createdAt: now, updatedAt: now } };
+    const task: TailorTask = { id: taskId, sourceResumeId: request.sourceResumeId, sourceRevision: source?.revision, applicationId: request.applicationId, job: structuredClone(request.job), sourceEvidence: request.sourceEvidence ? structuredClone(request.sourceEvidence) : undefined, versionId, status: "draft", createdAt: now, updatedAt: now };
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -1180,6 +1185,7 @@ export class PostgresStore implements OfferFlowStore {
     const now = new Date().toISOString();
     const template: ResumeTemplateRecord = {
       id: request.id,
+      revision: 1,
       name: request.name.trim(),
       profile: toCloudResumeProfile(request.document.profile),
       document: {
@@ -1220,9 +1226,11 @@ export class PostgresStore implements OfferFlowStore {
     }
     const current = await this.getResumeTemplate(userId, templateId);
     if (!current) throw new StoreError("RESUME_TEMPLATE_NOT_FOUND", "没有找到这份通用简历", 404);
+    if (request.expectedRevision !== (current.revision ?? 1)) throw new StoreError("RESUME_TEMPLATE_CONFLICT", "通用简历已在另一端更新，请保留当前副本后重新载入", 409);
     const now = new Date().toISOString();
     const template: ResumeTemplateRecord = {
       ...current,
+      revision: (current.revision ?? 1) + 1,
       name: request.name.trim(),
       profile: toCloudResumeProfile(request.document.profile),
       document: {
@@ -1234,10 +1242,10 @@ export class PostgresStore implements OfferFlowStore {
       updatedAt: now
     };
     const result = await this.pool.query(
-      "UPDATE resume_templates SET payload=$3::jsonb,updated_at=$4 WHERE id=$1 AND user_id=$2 AND payload->>'deletedAt' IS NULL",
-      [templateId, userId, json(template), now]
+      "UPDATE resume_templates SET payload=$3::jsonb,updated_at=$4 WHERE id=$1 AND user_id=$2 AND payload->>'deletedAt' IS NULL AND COALESCE((payload->>'revision')::int,1)=$5",
+      [templateId, userId, json(template), now, request.expectedRevision]
     );
-    if (!result.rowCount) throw new StoreError("RESUME_TEMPLATE_NOT_FOUND", "没有找到这份通用简历", 404);
+    if (!result.rowCount) throw new StoreError("RESUME_TEMPLATE_CONFLICT", "通用简历已在另一端更新，请保留当前副本后重新载入", 409);
     return template;
   }
 
@@ -1266,7 +1274,8 @@ export class PostgresStore implements OfferFlowStore {
         );
         const current = currentResult.rows[0]?.payload as ResumeTemplateRecord | undefined;
         if (current?.deletedAt) continue;
-        if (current && current.updatedAt.localeCompare(template.updatedAt) > 0) continue;
+        if (current && JSON.stringify(toCloudResumeProfile(current.profile)) === JSON.stringify(toCloudResumeProfile(template.profile)) && current.name === template.name && !template.document) continue;
+        if (current && incoming.revision !== (current.revision ?? 1)) throw new StoreError("RESUME_TEMPLATE_CONFLICT", "通用简历存在多端修改，请在简历中心处理冲突", 409);
         const mergedDocument = template.document
           ? structuredClone(template.document)
           : current?.document
@@ -1280,17 +1289,19 @@ export class PostgresStore implements OfferFlowStore {
         const merged: ResumeTemplateRecord = sanitizeResumeTemplate({
           ...(current ? sanitizeResumeTemplate(current) : {}),
           ...template,
+          revision: current ? (current.revision ?? 1) + 1 : 1,
           document: mergedDocument,
           origin: current?.origin || template.origin || "extension"
         });
-        await client.query(
+        const synced = await client.query(
           `INSERT INTO resume_templates (id,user_id,payload,created_at,updated_at)
            VALUES ($1,$2,$3::jsonb,$4,$5)
            ON CONFLICT (id,user_id) DO UPDATE SET payload=EXCLUDED.payload, updated_at=EXCLUDED.updated_at
            WHERE resume_templates.payload->>'deletedAt' IS NULL
-             AND resume_templates.updated_at <= EXCLUDED.updated_at`,
-          [template.id, userId, json(merged), template.createdAt, template.updatedAt]
+             AND COALESCE((resume_templates.payload->>'revision')::int,1)=$6`,
+          [template.id, userId, json(merged), template.createdAt, template.updatedAt, incoming.revision ?? 0]
         );
+        if (!synced.rowCount) throw new StoreError("RESUME_TEMPLATE_CONFLICT", "通用简历存在多端修改，请在简历中心处理冲突", 409);
       }
       await client.query("COMMIT");
     } catch (error) {
@@ -1302,14 +1313,14 @@ export class PostgresStore implements OfferFlowStore {
     return this.listResumeTemplates(userId, true);
   }
 
-  async updateResumeVersion(userId: string, versionId: string, document: ResumeDocument, expectedRevision: number): Promise<ResumeVersionRecord> {
+  async updateResumeVersion(userId: string, versionId: string, document: ResumeDocument, expectedRevision: number, status?: "draft" | "reviewed" | "exported" | "applied"): Promise<ResumeVersionRecord> {
     document = toCloudResumeDocument(document);
     const current = await this.getResumeVersion(userId, versionId);
     if (!current) throw new StoreError("RESUME_VERSION_NOT_FOUND", "没有找到这份简历版本", 404);
     if (current.revision !== expectedRevision) throw new StoreError("REVISION_CONFLICT", "这份简历已在其他页面更新，请刷新后重试", 409, { serverRevision: current.revision, server: current });
     if (document.id !== current.version.document.id) throw new StoreError("INVALID_RESUME_DOCUMENT", "简历文档与当前版本不匹配", 400);
     const now = new Date().toISOString();
-    const item: ResumeVersionRecord = { revision: expectedRevision + 1, version: { ...current.version, document: { ...structuredClone(document), updatedAt: now }, updatedAt: now } };
+    const item: ResumeVersionRecord = { revision: expectedRevision + 1, version: { ...current.version, status: status || "draft", document: { ...structuredClone(document), updatedAt: now }, updatedAt: now } };
     const result = await this.pool.query("UPDATE resume_versions SET revision=$3,payload=$4::jsonb,updated_at=$5 WHERE id=$1 AND user_id=$2 AND revision=$6", [versionId,userId,item.revision,json(item),now,expectedRevision]);
     if (!result.rowCount) throw new StoreError("REVISION_CONFLICT", "这份简历已在其他页面更新，请刷新后重试", 409);
     return item;

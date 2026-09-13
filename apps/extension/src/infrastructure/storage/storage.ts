@@ -7,6 +7,8 @@ import {
   type ResumeAsset
 } from "@/shared/types";
 import type { TailoredResumeBundle, TailoredResumeEntry } from "@/features/tailor/types";
+import { captureApplicationExpressions, captureApplicationFields, composeApplicationProfile, mergeApplicationFacts, toCloudResumeProfile, type LocalApplicationProfile, type ResumeTemplateSettings, type TailorJobContext } from "@offerflow/domain";
+import type { ResumeTemplateRecord } from "@offerflow/contracts";
 import {
   cloudDataScope,
   enqueueApplicationChanges,
@@ -25,6 +27,8 @@ export const JOBS_KEY = "offerflow.jobs";
 export const GUEST_JOBS_KEY = "offerflow.jobs.guest";
 export const SETTINGS_KEY = "offerflow.settings";
 export const PROFILE_KEY = "offerflow.profile";
+export const APPLICATION_PROFILE_KEY = "offerflow.applicationProfile";
+export const RESUME_USAGE_KEY = "offerflow.resumeUsage";
 export const TAILORED_RESUMES_KEY = "offerflow.tailoredResumes";
 export const TAILORED_PDF_KEY = "offerflow.tailoredPdf";
 export const BASE_PROFILE_KEY = "offerflow.baseProfile";
@@ -66,6 +70,15 @@ export interface StoredResumeSourceMetadata {
 
 export interface StoredResume {
   id: string;
+  cloudRevision?: number;
+  cloudBaseline?: string;
+  syncConflict?: ResumeTemplateRecord;
+  cloudVersionId?: string;
+  cloudVersionRevision?: number;
+  applicationId?: string;
+  tailorTaskId?: string;
+  template?: ResumeTemplateSettings;
+  jobSnapshot?: TailorJobContext;
   name: string;
   kind?: StoredResumeKind;
   /** Legacy relationship key retained only while old libraries are migrated. */
@@ -98,6 +111,40 @@ export interface StoredResume {
 export interface ResumeLibraryUiState {
   collapsed: boolean;
   pinned: boolean;
+}
+
+export interface ResumeUsageSnapshot {
+  id: string;
+  resumeId: string;
+  name: string;
+  versionId?: string;
+  revision?: number;
+  applicationId?: string;
+  filledAt: string;
+  filledCount: number;
+  pageUrl: string;
+  /** Resume fields only, never the values sent to private form fields. */
+  profile: ReturnType<typeof toCloudResumeProfile>;
+}
+
+export async function loadResumeUsage(): Promise<ResumeUsageSnapshot[]> {
+  return await readLocalValue<ResumeUsageSnapshot[]>(RESUME_USAGE_KEY) || [];
+}
+
+export async function recordResumeUsage(resumeId: string, profile: PersonalProfile, pageUrl: string, filledCount: number): Promise<void> {
+  if (filledCount < 1) return;
+  await withProfileWrite(async () => {
+    const resume = (await readStoredResumeLibrary())?.find(item => item.id === resumeId);
+    let safeUrl = "";
+    try { const url = new URL(pageUrl); if (["http:", "https:"].includes(url.protocol)) safeUrl = `${url.origin}${url.pathname}`; } catch { /* optional source */ }
+    const snapshot: ResumeUsageSnapshot = {
+      id: globalThis.crypto.randomUUID(), resumeId, name: resume?.name || "网申资料",
+      versionId: resume?.cloudVersionId, revision: resume?.cloudVersionRevision,
+      applicationId: resume?.applicationId, filledAt: new Date().toISOString(),
+      filledCount, pageUrl: safeUrl, profile: toCloudResumeProfile(profile)
+    };
+    await writeLocalValues({ [RESUME_USAGE_KEY]: [...await loadResumeUsage(), snapshot] });
+  });
 }
 
 export const DEFAULT_RESUME_LIBRARY_UI: ResumeLibraryUiState = {
@@ -279,6 +326,7 @@ export async function clearLocalProfileAndResumes(): Promise<void> {
     const tailoredPdfKeys = Object.keys(all).filter((key) => key.startsWith(`${TAILORED_PDF_KEY}.`));
     await chrome.storage.local.remove([
       BASE_PROFILE_KEY,
+      RESUME_USAGE_KEY,
       TAILORED_RESUMES_KEY,
       RESUME_LIBRARY_UI_KEY,
       PENDING_DELETED_RESUMES_KEY,
@@ -287,6 +335,7 @@ export async function clearLocalProfileAndResumes(): Promise<void> {
     ]);
   } else {
     localStorage.removeItem(BASE_PROFILE_KEY);
+    localStorage.removeItem(RESUME_USAGE_KEY);
     localStorage.removeItem(TAILORED_RESUMES_KEY);
     localStorage.removeItem(RESUME_LIBRARY_UI_KEY);
     localStorage.removeItem(PENDING_DELETED_RESUMES_KEY);
@@ -303,6 +352,8 @@ export async function clearLocalProfileAndResumes(): Promise<void> {
     setActiveResumeId(""),
     saveProfile({ ...EMPTY_PROFILE })
   ]);
+  if (hasChromeStorage()) await chrome.storage.local.remove(APPLICATION_PROFILE_KEY);
+  else localStorage.removeItem(APPLICATION_PROFILE_KEY);
 }
 
 export async function getActiveJobsKey(): Promise<string> {
@@ -427,29 +478,91 @@ export async function saveSettings(settings: OfferFlowSettings): Promise<void> {
   await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 }
 
-export async function loadProfile(): Promise<PersonalProfile> {
-  const sanitize = (raw?: PersonalProfile) => {
-    const profile = stripResumeDiagnosticFields({ ...EMPTY_PROFILE, ...raw });
-    if (isStarterProfile(profile)) {
-      return { ...EMPTY_PROFILE };
-    }
-    return profile;
-  };
-  if (!hasChromeStorage()) {
-    const value = localStorage.getItem(PROFILE_KEY);
-    return sanitize(value ? JSON.parse(value) : undefined);
-  }
-  const result = await chrome.storage.local.get(PROFILE_KEY);
-  return sanitize(result[PROFILE_KEY] as PersonalProfile | undefined);
+async function readLocalValue<T>(key: string): Promise<T | undefined> {
+  if (hasChromeStorage()) return (await chrome.storage.local.get(key))[key] as T | undefined;
+  const raw = localStorage.getItem(key);
+  return raw ? JSON.parse(raw) as T : undefined;
 }
 
-export async function saveProfile(profile: PersonalProfile): Promise<void> {
-  const next = { ...stripResumeDiagnosticFields(profile), updatedAt: new Date().toISOString() };
-  if (!hasChromeStorage()) {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
-    return;
-  }
-  await chrome.storage.local.set({ [PROFILE_KEY]: next });
+async function writeLocalValues(values: Record<string, unknown>): Promise<void> {
+  if (hasChromeStorage()) { await chrome.storage.local.set(values); return; }
+  for (const [key, value] of Object.entries(values)) localStorage.setItem(key, JSON.stringify(value));
+}
+
+let profileWriteQueue: Promise<unknown> = Promise.resolve();
+function withProfileWrite<T>(work: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && navigator.locks) return navigator.locks.request("offerflow-profile", work);
+  const result = profileWriteQueue.then(work, work);
+  profileWriteQueue = result.catch(() => undefined);
+  return result;
+}
+
+/** Read old records before projecting them, so migration cannot discard private
+ * values. Never rebuild this archive solely from a remote resume library. */
+export async function loadLocalApplicationProfile(): Promise<LocalApplicationProfile> {
+  let archive = await readLocalValue<LocalApplicationProfile>(APPLICATION_PROFILE_KEY);
+  const rawProfile = await readLocalValue<PersonalProfile>(PROFILE_KEY);
+  if (rawProfile) archive = captureApplicationFields(archive, rawProfile);
+  for (const resume of await readStoredResumeLibrary() || []) archive = captureApplicationFields(archive, resume.profile);
+  archive ||= { schemaVersion: 1, fields: {}, entries: {} };
+  return archive;
+}
+
+export async function loadProfile(): Promise<PersonalProfile> {
+  const archive = await loadLocalApplicationProfile();
+  const activeId = await readLocalValue<string>(ACTIVE_RESUME_KEY);
+  const storedLibrary = await readStoredResumeLibrary();
+  const current = storedLibrary?.find(resume => resume.id === activeId);
+  const raw = storedLibrary ? current?.profile || storedLibrary.find(resume => resume.kind !== "job")?.profile || { ...EMPTY_PROFILE } : await readLocalValue<PersonalProfile>(PROFILE_KEY);
+  const profile = stripResumeDiagnosticFields({ ...EMPTY_PROFILE, ...raw });
+  return composeApplicationProfile(isStarterProfile(profile) ? { ...EMPTY_PROFILE } : profile, archive, current?.id);
+}
+
+/** Materialized selection only. Explicit form edits go through
+ * saveApplicationProfile, which also updates the corresponding master facts. */
+export async function saveProfile(profile: PersonalProfile, options: { selection?: boolean } = {}): Promise<void> {
+  await withProfileWrite(async () => {
+    const previous = await loadLocalApplicationProfile();
+    const archive = options.selection ? previous : captureApplicationFields(previous, stripResumeDiagnosticFields(profile));
+    await writeLocalValues({
+      [APPLICATION_PROFILE_KEY]: archive,
+      [PROFILE_KEY]: { ...toCloudResumeProfile(profile), updatedAt: new Date().toISOString() }
+    });
+  });
+}
+
+export async function saveApplicationProfile(profile: PersonalProfile, activeId?: string, sourceFileName?: string): Promise<StoredResume[]> {
+  return withProfileWrite(async () => {
+    let archive = await loadLocalApplicationProfile();
+    const library = migrateResumeLibrary(await readStoredResumeLibrary() || []);
+    const selected = library.find(resume => resume.id === activeId);
+    const before = selected ? composeApplicationProfile(selected.profile, archive, selected.id) : { ...EMPTY_PROFILE };
+    archive = captureApplicationFields(archive, stripResumeDiagnosticFields(profile));
+    if (selected && selected.kind !== "job") archive = captureApplicationExpressions(archive, selected.id, before, profile);
+    const now = new Date().toISOString();
+    const masterId = selected?.kind === "job" ? selected.parentResumeId : selected?.id;
+    let masters = library.filter(resume => resume.kind !== "job");
+    if (!masters.length) {
+      const created: StoredResume = { id: `resume_${globalThis.crypto.randomUUID()}`, name: "通用简历", kind: "base", profile, createdAt: now, updatedAt: now };
+      library.push(created);
+      masters = [created];
+    }
+    const targetMaster = masters.find(resume => resume.id === masterId) || masters[0];
+    const next = library.map(resume => {
+      if (resume.id === selected?.id) return { ...resume, profile: selected.kind === "job" ? profile : mergeApplicationFacts(resume.profile, before, profile, false), sourceFileName: sourceFileName || resume.sourceFileName, updatedAt: now };
+      if (resume.id !== targetMaster.id) return resume;
+      const shared = mergeApplicationFacts(resume.profile, before, profile, selected?.kind !== "job");
+      return { ...resume, profile: shared, updatedAt: now };
+    });
+    const id = selected?.id || targetMaster.id;
+    await writeLocalValues({
+      [APPLICATION_PROFILE_KEY]: archive,
+      [RESUMES_KEY]: dehydrateResumeLibrary(next).map(resume => ({ ...resume, profile: toCloudResumeProfile(resume.profile) })),
+      [PROFILE_KEY]: toCloudResumeProfile(profile),
+      [ACTIVE_RESUME_KEY]: id
+    });
+    return next.map(resume => ({ ...resume, profile: composeApplicationProfile(resume.profile, archive) }));
+  });
 }
 
 export async function loadTailoredResumes(): Promise<Record<string, TailoredResumeEntry>> {
@@ -763,7 +876,11 @@ async function readStoredResumeLibrary(): Promise<StoredResume[] | undefined> {
 
 export async function loadResumeLibrary(): Promise<StoredResume[]> {
   const stored = await readStoredResumeLibrary();
-  if (stored) return migrateResumeLibrary(stored);
+  if (stored) {
+    if (stored.some(resume => JSON.stringify(resume.profile) !== JSON.stringify(toCloudResumeProfile(resume.profile)))) await saveResumeLibrary(stored);
+    const archive = await loadLocalApplicationProfile();
+    return migrateResumeLibrary(stored).map(resume => ({ ...resume, profile: composeApplicationProfile(resume.profile, archive) }));
+  }
 
   const profile = await loadProfile();
   const hasProfile = Boolean(
@@ -796,13 +913,13 @@ export async function loadResumeLibrary(): Promise<StoredResume[]> {
   return migrated;
 }
 
-export async function saveResumeLibrary(resumes: StoredResume[]): Promise<void> {
-  const persisted = dehydrateResumeLibrary(resumes);
-  if (!hasChromeStorage()) {
-    localStorage.setItem(RESUMES_KEY, JSON.stringify(persisted));
-    return;
-  }
-  await chrome.storage.local.set({ [RESUMES_KEY]: persisted });
+export async function saveResumeLibrary(resumes: StoredResume[], options: { origin?: "local" | "cloud" } = {}): Promise<void> {
+  await withProfileWrite(async () => {
+    let archive = await loadLocalApplicationProfile();
+    if (options.origin !== "cloud") for (const resume of resumes) archive = captureApplicationFields(archive, resume.profile);
+    const persisted = dehydrateResumeLibrary(resumes).map(resume => ({ ...resume, profile: toCloudResumeProfile(resume.profile) }));
+    await writeLocalValues({ [APPLICATION_PROFILE_KEY]: archive, [RESUMES_KEY]: persisted });
+  });
 }
 
 export async function updateResumeSourceLayoutMetadata(

@@ -97,6 +97,8 @@ export interface ResumeVersion {
   tailorTaskId: string;
   sourceResumeId: string;
   sourceResumeName: string;
+  sourceRevision?: number;
+  jobSnapshot?: TailorJobContext;
   applicationId?: string;
   company: string;
   position: string;
@@ -122,6 +124,7 @@ export type TailorTaskStatus = "draft" | "generating" | "ready" | "failed";
 export interface TailorTask {
   id: string;
   sourceResumeId: string;
+  sourceRevision?: number;
   applicationId?: string;
   job: TailorJobContext;
   sourceEvidence?: ResumeSourceEvidence;
@@ -145,6 +148,44 @@ export interface ResumeTailorProposal {
   changes: ResumeTailorChange[];
   provider: string;
   generatedAt: string;
+}
+
+/** Apply reviewed changes only. Other user edits and omitted suggestions remain
+ * untouched; structural descriptions are regenerated from the selected blocks. */
+export function applyReviewedResumeChanges(source: PersonalProfile, proposal: ResumeTailorProposal, selected: readonly string[]): PersonalProfile {
+  const profile = hydrateResumeProfileSemantics(source);
+  const ids = new Set(selected);
+  for (const change of proposal.changes.filter(item => ids.has(item.id))) {
+    if (change.field === "selfIntroduction" || change.field === "strengths") {
+      if (profile[change.field] !== change.before) throw new Error("简历已修改，请重新生成建议后审阅");
+      profile[change.field] = change.after;
+      continue;
+    }
+    const path = change.field.match(/^(experiences|projects|campusExperiences)\.(.+)\.contentBlocks\.(.+)$/);
+    const legacy = change.field.match(/^(experiences|projects|campusExperiences)\.(.+)\.description$/);
+    const key = (path?.[1] || legacy?.[1]) as "experiences" | "projects" | "campusExperiences" | undefined;
+    if (!key) continue;
+    const entry = profile[key].find(item => item.id === (path?.[2] || legacy?.[2]));
+    if (!entry) throw new Error("经历已变化，请重新生成建议");
+    if (path) {
+      const find = (blocks: ResumeContentBlock[]): ResumeContentBlock | undefined => {
+        for (const block of blocks) {
+          if (block.id === path[3]) return block;
+          const nested = find(block.children || []);
+          if (nested) return nested;
+        }
+      };
+      const block = find(entry.contentBlocks || []);
+      if (!block || block.text !== change.before) throw new Error("经历内容已变化，请重新生成建议");
+      block.text = change.after;
+      delete block.inline;
+    } else {
+      if (serializeResumeContentBlocks(entry.contentBlocks || []) !== change.before) throw new Error("经历内容已变化，请重新生成建议");
+      entry.contentBlocks = parseResumeContentBlocks(change.after, entry.id);
+    }
+    entry.description = serializeResumeContentBlocks(entry.contentBlocks || []);
+  }
+  return profile;
 }
 
 export const DEFAULT_RESUME_TEMPLATE: ResumeTemplateSettings = {

@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { toCloudResumeProfile, type CloudResumeProfile, composeApplicationProfile, detachedApplicationEntries, type LocalApplicationProfile } from "@offerflow/domain";
+import { mergeRemoteResumeTemplates, resumeSyncFingerprint } from "@/infrastructure/sync/resumeTemplateSync";
+import { useEffect, useMemo, useState, useRef, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -21,6 +23,13 @@ import {
   loadActiveResumeId,
   loadResumeLibrary,
   PROFILE_KEY,
+  APPLICATION_PROFILE_KEY,
+  loadProfile,
+  saveApplicationProfile,
+  loadLocalApplicationProfile,
+  recordResumeUsage,
+  loadResumeUsage,
+  type ResumeUsageSnapshot,
   RESUMES_KEY,
   saveBaseProfile,
   saveResumeLibrary,
@@ -45,6 +54,20 @@ import type {
   ProfileExperience,
   ProfileProject
 } from "@/shared/types";
+
+function ResumeFactsPreview({ profile }: { profile: CloudResumeProfile }) {
+  return <div>
+    <p>{[profile.fullName, profile.phone, profile.email].filter(Boolean).join(" · ")}</p>
+    <p>{[profile.currentCity, profile.targetRole, profile.earliestStartDate].filter(Boolean).join(" · ")}</p>
+    {profile.selfIntroduction && <p>{profile.selfIntroduction}</p>}
+    {profile.education.map(entry => <p key={entry.id}>{[entry.school, entry.major, entry.degree, `${entry.startDate}—${entry.endDate}`].filter(Boolean).join(" · ")}</p>)}
+    {profile.experiences.map(entry => <div key={entry.id}><strong>{entry.organization} · {entry.title}</strong><p>{entry.startDate}—{entry.endDate}</p><p style={{ whiteSpace: "pre-wrap" }}>{entry.description}</p></div>)}
+    {profile.projects.map(entry => <div key={entry.id}><strong>{entry.name} · {entry.role}</strong><p style={{ whiteSpace: "pre-wrap" }}>{entry.description}</p></div>)}
+    {profile.campusExperiences.map(entry => <p key={entry.id}>{entry.type} · {entry.role}：{entry.description}</p>)}
+    {profile.awards.map(entry => <p key={entry.id}>{entry.name} · {entry.level}</p>)}
+    {profile.strengths && <p style={{ whiteSpace: "pre-wrap" }}>{profile.strengths}</p>}
+  </div>;
+}
 
 const newId = (prefix: string) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 const monthInputValue = (value?: string) => {
@@ -642,8 +665,13 @@ export default function ProfileView({
   const [resumeFileName, setResumeFileName] = useState("");
   const [resumeLibrary, setResumeLibrary] = useState<StoredResume[]>([]);
   const [activeResumeId, setActiveResumeIdState] = useState("");
+  const [localArchive, setLocalArchive] = useState<LocalApplicationProfile>();
+  const [usageSnapshots, setUsageSnapshots] = useState<ResumeUsageSnapshot[]>([]);
+  useEffect(() => { void loadResumeUsage().then(setUsageSnapshots); }, []);
+  const draftDirtyRef = useRef(false);
+  useEffect(() => { void loadLocalApplicationProfile().then(setLocalArchive); }, [resumeLibrary]);
 
-  useEffect(() => setDraft(profile), [profile]);
+  useEffect(() => { if (!draftDirtyRef.current) setDraft(profile); }, [profile]);
 
   useEffect(() => {
     if (isStarterProfile(draft)) {
@@ -671,7 +699,7 @@ export default function ProfileView({
       setActiveResumeIdState(currentId);
       const current = library.find((resume) => resume.id === currentId);
       if (current) {
-        setDraft(current.profile);
+        setDraft(await loadProfile());
         setResumeFileName(current.sourceFileName || "");
       }
     })();
@@ -689,9 +717,13 @@ export default function ProfileView({
       if (areaName !== "local") return;
       const profileChange = changes[PROFILE_KEY]?.newValue as PersonalProfile | undefined;
       const libraryChanged = Boolean(changes[RESUMES_KEY] || changes[ACTIVE_RESUME_KEY]);
-      if (!libraryChanged && !profileChange) return;
+      if (!libraryChanged && !profileChange && !changes[APPLICATION_PROFILE_KEY]) return;
+      if (draftDirtyRef.current) {
+        setStatus("其他页面已更新资料。当前未保存的修改已保留，请先保存再切换简历。");
+        return;
+      }
       if (!libraryChanged && profileChange) {
-        setDraft(profileChange);
+        void loadProfile().then(setDraft);
         return;
       }
       void (async () => {
@@ -701,10 +733,10 @@ export default function ProfileView({
         setActiveResumeIdState(currentId);
         const current = library.find((resume) => resume.id === currentId);
         if (current) {
-          setDraft(profileChange || current.profile);
+          setDraft(await loadProfile());
           setResumeFileName(current.sourceFileName || "");
         } else if (profileChange) {
-          setDraft(profileChange);
+          setDraft(await loadProfile());
         }
       })();
     };
@@ -758,12 +790,13 @@ export default function ProfileView({
   const values = useMemo(() => profileValues(draft), [draft]);
   const currentResume = resumeLibrary.find((resume) => resume.id === activeResumeId);
   const hasPendingChanges = useMemo(() => {
-    const baseline = currentResume?.profile || profile;
+    const baseline = currentResume ? composeApplicationProfile(currentResume.profile, localArchive, currentResume.id) : profile;
     const sourceChanged = Boolean(
       currentResume && resumeFileName !== (currentResume.sourceFileName || "")
     );
     return sourceChanged || comparableProfile(draft) !== comparableProfile(baseline);
-  }, [currentResume, draft, profile, resumeFileName]);
+  }, [currentResume, draft, profile, resumeFileName, localArchive]);
+  draftDirtyRef.current = hasPendingChanges;
   const set = <K extends keyof PersonalProfile>(key: K, value: PersonalProfile[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
@@ -771,54 +804,20 @@ export default function ProfileView({
     const selected = resumeLibrary.find((resume) => resume.id === id);
     if (!selected) return;
     setActiveResumeIdState(id);
-    setDraft(selected.profile);
+    await setActiveResumeId(id);
+    const selectedProfile = await loadProfile();
+    setDraft(selectedProfile);
     setResumeFileName(selected.sourceFileName || "");
-    await Promise.all([
-      setActiveResumeId(id),
-      saveBaseProfile(extractResumeFixedProfile(selected.profile)),
-      onSave(selected.profile)
-    ]);
+    await onSave(selectedProfile);
     setStatus(`已切换当前网申简历：${selected.name} · 插件资料已同步`);
   };
 
   const persistDraft = async () => {
-    const now = new Date().toISOString();
-    const syncedProfile = { ...draft, updatedAt: now };
-    const fixedProfile = extractResumeFixedProfile(syncedProfile);
-    let nextActiveResumeId = activeResumeId || resumeLibrary[0]?.id || "";
-    let nextLibrary = resumeLibrary;
-
-    if (!nextActiveResumeId) {
-      nextActiveResumeId = newId("resume");
-      nextLibrary = [{
-        id: nextActiveResumeId,
-        name: "我的简历",
-        sourceFileName: resumeFileName || undefined,
-        profile: syncedProfile,
-        createdAt: now,
-        updatedAt: now,
-        lastUsedAt: now
-      }];
-    } else {
-      nextLibrary = resumeLibrary.map((resume) => ({
-        ...resume,
-        profile: resume.id === nextActiveResumeId
-          ? syncedProfile
-          : applyResumeFixedProfile(resume.profile, fixedProfile),
-        sourceFileName: resume.id === nextActiveResumeId
-          ? resumeFileName || resume.sourceFileName
-          : resume.sourceFileName,
-        updatedAt: resume.id === nextActiveResumeId ? now : resume.updatedAt
-      }));
-    }
-
-    await Promise.all([
-      onSave(syncedProfile),
-      saveBaseProfile(fixedProfile),
-      saveResumeLibrary(nextLibrary),
-      nextActiveResumeId !== activeResumeId ? setActiveResumeId(nextActiveResumeId) : Promise.resolve()
-    ]);
-    setActiveResumeIdState(nextActiveResumeId);
+    const syncedProfile = { ...draft, updatedAt: new Date().toISOString() };
+    const nextLibrary = await saveApplicationProfile(syncedProfile, activeResumeId, resumeFileName || undefined);
+    const nextActiveId = await loadActiveResumeId() || nextLibrary[0]?.id || "";
+    await onSave(syncedProfile);
+    setActiveResumeIdState(nextActiveId);
     setDraft(syncedProfile);
     setResumeLibrary(nextLibrary);
     return syncedProfile;
@@ -830,7 +829,7 @@ export default function ProfileView({
       await persistDraft();
       setStorageWarning(undefined);
       setOpenSections(COLLAPSED_SECTIONS);
-      setStatus("个人资料与简历中心已同步 · 已收起各资料分组");
+      setStatus("已保存到本地，公共资料已更新通用简历；连接云端后同步");
     } catch (error) {
       const warning = profileStorageWarning(error);
       if (warning) {
@@ -842,6 +841,15 @@ export default function ProfileView({
     } finally {
       setBusy(false);
     }
+  };
+
+  const recordFill = async (filled: number) => {
+    if (!filled) return;
+    try {
+      const tab = await getActiveRecruitmentTab();
+      await recordResumeUsage(activeResumeId || await loadActiveResumeId() || "", draft, tab?.url || "", filled);
+      setUsageSnapshots(await loadResumeUsage());
+    } catch { setStorageWarning("填写已完成，但本次简历使用记录未保存。请检查本地存储后重试。"); }
   };
 
   const scan = async () => {
@@ -907,6 +915,7 @@ export default function ProfileView({
             });
             if (!fillResponse?.ok) throw new Error(fillResponse?.error || "填写失败");
             const report = fillResponse as FormFillResponse;
+            await recordFill(report.filled || 0);
             if (report.finalFields?.length) {
               setFields(assignPlatformProfileIndexes(normalizeRepeatableFormFields(report.finalFields), draft));
             }
@@ -958,6 +967,7 @@ export default function ProfileView({
       });
       if (!response?.ok) throw new Error(response?.error || "填写失败");
       const report = response as FormFillResponse;
+      await recordFill(report.filled || 0);
       if (report.finalFields?.length) {
         setFields(assignPlatformProfileIndexes(normalizeRepeatableFormFields(report.finalFields), draft));
       }
@@ -998,7 +1008,7 @@ export default function ProfileView({
     setPendingEntryId(id);
   };
   const updateExperience = (id: string, patch: Partial<ProfileExperience>) =>
-    set("experiences", draft.experiences.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    set("experiences", draft.experiences.map((item) => (item.id === id ? { ...item, ...patch, ...(patch.description !== undefined ? { contentBlocks: [] } : {}) } : item)));
   const addProject = () => {
     const id = newId("project");
     set("projects", [...draft.projects, { id, name: "", role: "", startDate: "", endDate: "", description: "" }]);
@@ -1006,7 +1016,7 @@ export default function ProfileView({
     setPendingEntryId(id);
   };
   const updateProject = (id: string, patch: Partial<ProfileProject>) =>
-    set("projects", draft.projects.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    set("projects", draft.projects.map((item) => (item.id === id ? { ...item, ...patch, ...(patch.description !== undefined ? { contentBlocks: [] } : {}) } : item)));
   const addCampusExperience = () => {
     const id = newId("campus");
     set("campusExperiences", [
@@ -1019,7 +1029,7 @@ export default function ProfileView({
   const updateCampusExperience = (id: string, patch: Partial<ProfileCampusExperience>) =>
     set(
       "campusExperiences",
-      draft.campusExperiences.map((item) => (item.id === id ? { ...item, ...patch } : item))
+      draft.campusExperiences.map((item) => (item.id === id ? { ...item, ...patch, ...(patch.description !== undefined ? { contentBlocks: [] } : {}) } : item))
     );
   const addAward = () => {
     const id = newId("award");
@@ -1109,11 +1119,57 @@ export default function ProfileView({
   };
 
 
+  const resolveResumeConflict = async (resume: StoredResume, keepBoth: boolean) => {
+    if (!resume.syncConflict) return;
+    setBusy(true);
+    try {
+      const library = await loadResumeLibrary();
+      const current = library.find(item => item.id === resume.id);
+      if (!current?.syncConflict) return;
+      const remote = current.syncConflict;
+      const prepared = library.map(item => item.id === current.id ? { ...item, cloudBaseline: resumeSyncFingerprint(item), syncConflict: undefined } : item);
+      const next = mergeRemoteResumeTemplates(prepared, [remote]);
+      if (keepBoth) next.push({ ...current, id: newId("resume"), name: `${current.name}（本地副本）`, cloudBaseline: undefined, cloudRevision: undefined, syncConflict: undefined });
+      await saveResumeLibrary(next, { origin: "cloud" });
+      const selected = next.find(item => item.id === activeResumeId) || next[0];
+      await setActiveResumeId(selected?.id || "");
+      setResumeLibrary(await loadResumeLibrary());
+      setActiveResumeIdState(selected?.id || "");
+      setDraft(await loadProfile());
+      setStatus(keepBoth ? "已保留本地副本，原母版使用云端内容" : "已采用云端内容，本地网申补充资料仍保留");
+    } catch (cause) { setStatus(cause instanceof Error ? cause.message : "处理冲突失败，请重试"); }
+    finally { setBusy(false); }
+  };
+
   const toggleSection = (id: ProfileSectionId) =>
     setOpenSections((current) => ({ ...current, [id]: !current[id] }));
 
   return (
     <section className="profile-view">
+      {resumeLibrary.filter(resume => resume.syncConflict).map(resume => <section key={resume.id} className="profile-review-panel" role="alert">
+        <div><strong>《{resume.name}》存在同步冲突</strong><p>本地和云端内容都已保留。选择保留双方，或采用云端版本。</p>
+          <details><summary>比较两边的内容</summary><strong>本地内容</strong><ResumeFactsPreview profile={toCloudResumeProfile(resume.profile)} /><strong>云端内容</strong>{resume.syncConflict?.deletedAt ? <p>云端已删除这份母版</p> : <ResumeFactsPreview profile={resume.syncConflict!.profile} />}</details>
+          <button type="button" disabled={busy || hasPendingChanges} onClick={() => void resolveResumeConflict(resume, true)}>保留双方</button>
+          <button type="button" disabled={busy || hasPendingChanges} onClick={() => void resolveResumeConflict(resume, false)}>采用云端版本</button>
+        </div>
+      </section>)}
+      {detachedApplicationEntries(draft, localArchive).length > 0 && <details className="profile-review-panel">
+        <summary>查看未在当前简历展示的本地网申资料</summary>
+        <div>{detachedApplicationEntries(draft, localArchive).map(({ collection, id, entry }) => <div key={`${collection}:${id}`}>
+          <strong>{String(entry.organization || entry.school || entry.name || entry.type || "历史记录")}</strong>
+          <p>该记录的网申补充信息保留在本机，可恢复到当前资料后编辑。</p>
+          <button type="button" onClick={() => setDraft(current => ({ ...current, [collection]: [...(current[collection] || []), entry] }) as PersonalProfile)}>恢复这条记录</button>
+        </div>)}</div>
+      </details>}
+      {currentResume?.kind === "job" && <aside className="profile-review-panel"><p>当前使用：{currentResume.company} · {currentResume.position}。公共事实修改会更新母版，岗位表达保留在这份简历中。</p></aside>}
+      {usageSnapshots.length > 0 && <details className="profile-review-panel"><summary>查看简历填写记录（仅本机）</summary>
+        <div>{[...usageSnapshots].reverse().map(snapshot => <details key={snapshot.id}>
+          <summary>{snapshot.name} · {new Date(snapshot.filledAt).toLocaleString()} · {snapshot.filledCount} 个字段</summary>
+          <p>{snapshot.versionId ? `基于岗位简历的第 ${snapshot.revision} 次保存；下方为当时实际填写的简历内容` : "本地资料快照"}</p>
+          <p>{snapshot.pageUrl} · 此记录表示填写，不代表已提交投递。</p>
+          <ResumeFactsPreview profile={snapshot.profile} />
+        </details>)}</div>
+      </details>}
       {onTailor && (
         <div className="profile-autofill-card profile-tailor-card">
           <span><Sparkles size={20} /></span>
@@ -1131,10 +1187,10 @@ export default function ProfileView({
             <span><FileCheck2 size={16} /></span>
             <div>
               <strong>当前网申简历</strong>
-              <small>{storageWarning ? "资料未完整保存" : hasPendingChanges ? "有修改待保存" : "已与简历中心同步"}</small>
+              <small>{storageWarning ? "资料未完整保存" : hasPendingChanges ? "有修改待保存" : "已保存到本地"}</small>
             </div>
           </div>
-          <select value={activeResumeId} onChange={(event) => void selectResume(event.target.value)} disabled={busy}>
+          <select aria-label="选择当前网申简历" value={activeResumeId} onChange={(event) => void selectResume(event.target.value)} disabled={busy}>
             {resumeLibrary.map((resume) => <option key={resume.id} value={resume.id}>{resume.name}</option>)}
           </select>
           <button
@@ -1162,7 +1218,7 @@ export default function ProfileView({
             <span>删除</span>
           </button>
           <span className={`profile-sync-state ${hasPendingChanges || storageWarning ? "pending" : "synced"}`}>
-            {hasPendingChanges || storageWarning ? "待保存" : "已同步"}
+            {hasPendingChanges || storageWarning ? "待保存" : "已保存"}
           </span>
         </div>
       )}

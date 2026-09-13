@@ -7,7 +7,7 @@ import type {
   SessionUser
 } from "@offerflow/contracts";
 import type { JobApplication, TailorJobContext } from "@offerflow/domain";
-import { cloudResumeToPersonalProfile, toCloudResumeAssets, toCloudResumeProfile } from "@offerflow/domain";
+import { cloudResumeToPersonalProfile, createResumeDocument, toCloudResumeDocument, toCloudResumeAssets, toCloudResumeProfile } from "@offerflow/domain";
 import {
   EMPTY_PROFILE,
   clearGuestJobs,
@@ -25,7 +25,7 @@ import {
   saveProfile,
   saveResumeLibrary
 } from "@/infrastructure/storage/storage";
-import { mergeRemoteResumeTemplates } from "./resumeTemplateSync";
+import { mergeRemoteResumeTemplates, mergeRemoteResumeVersions, resumeSyncFingerprint } from "./resumeTemplateSync";
 import {
   clearCloudSyncStorage,
   clearCloudConnection,
@@ -295,7 +295,7 @@ export async function pairCloudDevice(
       const approved = typeof window !== "undefined" && window.confirm(
         `${action}至 ${preview.user.email}（${preview.apiBaseUrl}）？\n\n` +
         `包括 ${preview.jobCount} 条投递、${preview.resumeCount} 份通用简历，以及之后保存的投递与通用简历。\n` +
-        "简历只上传姓名、联系方式、教育、经历、项目和技能等简历字段。证件、家庭、健康、紧急联系人等网申专用字段及原文件留在本地。\n\n" +
+        "简历上传姓名、联系方式、教育、经历、项目、技能、兴趣、到岗时间及简历图片和排版。证件、家庭、健康、紧急联系人等网申专用字段及原文件留在本地。\n\n" +
         (preview.migration ? "旧账号的本地资料将绑定至这个账号；旧账号云端数据不变。\n" : "") +
         "确认后开始同步；取消不会删除或迁移任何本地资料。"
       );
@@ -641,19 +641,40 @@ async function syncResumeTemplates(client: ReturnType<typeof createApiClient>, s
   const currentPendingDeletes = new Set([...pendingDeletes, ...await loadPendingDeletedResumeIds(scope)]);
   const filteredLibrary = library.filter((resume) => !currentPendingDeletes.has(resume.id));
   const templates = filteredLibrary
-    .filter((resume) => (resume.kind || "base") === "base")
+    .filter((resume) => (resume.kind || "base") === "base" && !resume.syncConflict && (!resume.cloudBaseline || resumeSyncFingerprint(resume) !== resume.cloudBaseline))
     .map((resume) => ({
       id: resume.id,
+      revision: resume.cloudRevision ?? 0,
       name: resume.name,
       profile: toCloudResumeProfile(resume.profile),
+      document: toCloudResumeDocument({
+        ...createResumeDocument({ id: resume.id, title: resume.name, profile: resume.profile, assets: resume.assets, portraitAssetId: resume.portraitAssetId, now: resume.createdAt }),
+        ...(resume.template ? { template: resume.template } : {}),
+        updatedAt: resume.updatedAt
+      }),
       origin: "extension" as const,
       createdAt: resume.createdAt,
       updatedAt: resume.updatedAt
     }));
-  const response = await client.resumes.syncTemplates({ templates });
-  const activeRemote = response.templates.filter((t) => !currentPendingDeletes.has(t.id));
-  const nextLibrary = mergeRemoteResumeTemplates(filteredLibrary, activeRemote);
-  if (JSON.stringify(nextLibrary) !== JSON.stringify(library)) await saveResumeLibrary(nextLibrary);
+  let remoteTemplates;
+  let conflicted = false;
+  try {
+    remoteTemplates = (await client.resumes.syncTemplates({ templates })).templates;
+  } catch (error) {
+    if (!(error instanceof OfferFlowApiError) || error.status !== 409) throw error;
+    // Read tombstones too; a read-only sync has no payload to conflict with.
+    remoteTemplates = (await client.resumes.syncTemplates({ templates: [] })).templates;
+    conflicted = true;
+  }
+  // A network round-trip must not replace edits made while it was in flight.
+  const latestLibrary = (await loadResumeLibrary()).filter(resume => !currentPendingDeletes.has(resume.id));
+  const activeRemote = remoteTemplates.filter((t) => !currentPendingDeletes.has(t.id));
+  let nextLibrary = mergeRemoteResumeTemplates(latestLibrary, activeRemote);
+  const versions = await client.resumes.listVersions();
+  nextLibrary = mergeRemoteResumeVersions(nextLibrary, versions.versions);
+  if (JSON.stringify(nextLibrary) !== JSON.stringify(library)) await saveResumeLibrary(nextLibrary, { origin: "cloud" });
+  if (conflicted || nextLibrary.some(resume => resume.syncConflict)) throw new Error("通用简历存在多端修改，双方内容已保留。请打开网申信息中心处理同步冲突。");
+
 }
 
 async function performCloudSync(): Promise<CloudSyncOverview> {
@@ -878,12 +899,16 @@ export async function createCloudTailorTask(sourceResumeId: string, job: TailorJ
 async function performCreateTailor(request: Extract<CloudSyncCommand, { action: "tailor" }>): Promise<CreateTailorTaskResponse> {
   const connection = await requireBoundConnection();
   if (!connection || connectionScope(connection) !== request.scope) throw new Error("账号已变化，请重新选择简历后再定制");
+  const client = createApiClient({ baseUrl: connection.apiBaseUrl, getAccessToken: () => connection.accessToken });
+  await syncResumeTemplates(client, request.scope);
   const resume = (await loadResumeLibrary()).find(item => item.id === request.sourceResumeId);
   if (!resume) throw new Error("这份本地简历已变化或已删除，请刷新简历库后重试");
+  if (resume.kind === "job") throw new Error("请选择通用母版创建岗位简历");
+  if (resume.syncConflict) throw new Error("请先处理通用母版的同步冲突，再生成岗位简历");
   const assets = toCloudResumeAssets(resume.assets);
-  const client = createApiClient({ baseUrl: connection.apiBaseUrl, getAccessToken: () => connection.accessToken });
   return client.resumes.createTailorTask({
     sourceResumeId: resume.id,
+    sourceRevision: resume.cloudRevision,
     sourceResumeName: resume.name,
     sourceProfile: cloudResumeToPersonalProfile(resume.profile),
     sourceAssets: assets,

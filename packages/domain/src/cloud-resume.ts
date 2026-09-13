@@ -22,7 +22,8 @@ import {
  * this is a schema boundary, not a claim to detect all PII in arbitrary prose. */
 export const CLOUD_RESUME_TEXT_FIELDS = [
   "fullName", "phone", "email", "graduationDate", "currentCity", "targetRole",
-  "targetCities", "portfolioUrl", "githubUrl", "selfIntroduction", "strengths"
+  "targetCities", "portfolioUrl", "githubUrl", "selfIntroduction", "strengths",
+  "hobbies", "earliestStartDate"
 ] as const;
 
 const EDUCATION_FIELDS = [

@@ -227,7 +227,7 @@ test("web-authored field resumes can be edited and synchronized back to the exte
   const updated = await jsonRequest(app.baseUrl, `/v1/resume-templates/${id}`, {
     method: "PATCH",
     headers,
-    body: JSON.stringify({ name: "AI 产品经理通用简历", document: editedDocument })
+    body: JSON.stringify({ name: "AI 产品经理通用简历", document: editedDocument, expectedRevision: created.payload.data.template.revision })
   });
   assert.equal(updated.response.status, 200);
   assert.equal(updated.payload.data.template.profile.targetRole, "AI 产品经理");
@@ -240,8 +240,10 @@ test("web-authored field resumes can be edited and synchronized back to the exte
     headers,
     body: JSON.stringify({ templates: [{ id, name: "旧插件简历", profile: profile(), origin: "extension", createdAt: now, updatedAt: now }] })
   });
-  assert.equal(stalePluginSync.payload.data.templates[0].name, "AI 产品经理通用简历");
-  assert.deepEqual(stalePluginSync.payload.data.templates[0].profile.experiences[0].contentBlocks, cloudBlocks);
+  assert.equal(stalePluginSync.response.status, 409);
+  const preserved = await jsonRequest(app.baseUrl, `/v1/resume-templates/${id}`, { headers });
+  assert.equal(preserved.payload.data.template.name, "AI 产品经理通用简历");
+  assert.deepEqual(preserved.payload.data.template.profile.experiences[0].contentBlocks, cloudBlocks);
 
   const newerProfile = profile();
   newerProfile.phone = "13900000000";
@@ -249,7 +251,7 @@ test("web-authored field resumes can be edited and synchronized back to the exte
   const newerPluginSync = await jsonRequest(app.baseUrl, "/v1/resume-templates/sync", {
     method: "POST",
     headers,
-    body: JSON.stringify({ templates: [{ id, name: "插件修改后的简历", profile: newerProfile, origin: "extension", createdAt: now, updatedAt: future }] })
+    body: JSON.stringify({ templates: [{ id, revision: updated.payload.data.template.revision, name: "插件修改后的简历", profile: newerProfile, origin: "extension", createdAt: now, updatedAt: future }] })
   });
   const synced = newerPluginSync.payload.data.templates[0];
   assert.equal(synced.profile.phone, "13900000000");
@@ -263,7 +265,7 @@ test("web-authored field resumes can be edited and synchronized back to the exte
   const deletionSync = await jsonRequest(app.baseUrl, "/v1/resume-templates/sync", {
     method: "POST",
     headers,
-    body: JSON.stringify({ templates: [{ id, name: "插件修改后的简历", profile: newerProfile, origin: "extension", createdAt: now, updatedAt: future }] })
+    body: JSON.stringify({ templates: [{ id, revision: updated.payload.data.template.revision, name: "插件修改后的简历", profile: newerProfile, origin: "extension", createdAt: now, updatedAt: future }] })
   });
   assert.ok(deletionSync.payload.data.templates[0].deletedAt);
 });

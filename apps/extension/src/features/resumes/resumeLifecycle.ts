@@ -180,7 +180,7 @@ export function migrateResumeLibrary(input: StoredResume[]): StoredResume[] {
 
   const bases = new Map(normalized.filter((resume) => resume.kind === "base").map((resume) => [resume.id, resume]));
   return normalized.map((resume) => {
-    if (resume.kind !== "job" || !resume.parentResumeId) return resume;
+    if (resume.kind !== "job" || !resume.parentResumeId || resume.cloudVersionRevision) return resume;
     const base = bases.get(resume.parentResumeId);
     if (!base) return resume;
     const inheritedPdf = resume.sourcePdf || base.sourcePdf;
@@ -208,7 +208,7 @@ export function dehydrateResumeLibrary(input: StoredResume[]): StoredResume[] {
       ...persisted
     } = resume;
     persisted.profile = stripResumeDiagnosticFields(persisted.profile);
-    if (resume.kind === "job" && resume.parentResumeId) {
+    if (resume.kind === "job" && resume.parentResumeId && !resume.cloudVersionRevision) {
       delete persisted.sourcePdf;
       delete persisted.assets;
     }

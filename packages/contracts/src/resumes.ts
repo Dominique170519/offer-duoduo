@@ -26,6 +26,8 @@ export interface ResumeVersionListResponse {
  * structured content only: original files stay on the user's device. */
 export interface ResumeTemplateRecord {
   id: string;
+  /** Missing only on records/clients predating revision-based synchronization. */
+  revision?: number;
   name: string;
   sourceFileName?: string;
   profile: CloudResumeProfile;
@@ -55,6 +57,7 @@ export interface CreateResumeTemplateRequest {
 export interface UpdateResumeTemplateRequest {
   name: string;
   document: ResumeDocument;
+  expectedRevision: number;
 }
 
 export interface ResumeTemplateResponse {
@@ -63,6 +66,7 @@ export interface ResumeTemplateResponse {
 
 export interface CreateTailorTaskRequest {
   sourceResumeId: string;
+  sourceRevision?: number;
   sourceResumeName: string;
   sourceProfile: PersonalProfile;
   sourceAssets?: ResumeAsset[];
@@ -95,6 +99,7 @@ export interface GenerateTailorTaskResponse {
 export interface UpdateResumeVersionRequest {
   document: ResumeDocument;
   expectedRevision: number;
+  status?: "draft" | "reviewed" | "exported" | "applied";
 }
 
 export interface ResumeVersionResponse {
@@ -113,9 +118,10 @@ export interface ExchangeHandoffResponse {
 }
 
 /** Keep an empty compatibility shell for old clients, never deleted content. */
-export function resumeTemplateTombstone(template: Pick<ResumeTemplateRecord, "id" | "createdAt" | "updatedAt">, deletedAt: string): ResumeTemplateRecord {
+export function resumeTemplateTombstone(template: Pick<ResumeTemplateRecord, "id" | "createdAt" | "updatedAt" | "revision">, deletedAt: string): ResumeTemplateRecord {
   return {
     id: template.id,
+    revision: template.revision ?? 1,
     name: "",
     profile: toCloudResumeProfile({}),
     createdAt: template.createdAt,
@@ -129,6 +135,7 @@ export function sanitizeResumeTemplate(template: ResumeTemplateRecord): ResumeTe
   return {
     id: template.id,
     name: template.name,
+    revision: template.revision ?? 1,
     profile: toCloudResumeProfile(template.profile),
     ...(template.document ? { document: toCloudResumeDocument(template.document) } : {}),
     ...(template.origin ? { origin: template.origin } : {}),
@@ -141,6 +148,7 @@ export function sanitizeTailorTaskRequest(request: CreateTailorTaskRequest): Cre
   const sourceAssets = toCloudResumeAssets(request.sourceAssets);
   return {
     sourceResumeId: request.sourceResumeId,
+    ...(Number.isSafeInteger(request.sourceRevision) && Number(request.sourceRevision) > 0 ? { sourceRevision: request.sourceRevision } : {}),
     sourceResumeName: request.sourceResumeName,
     sourceProfile: cloudResumeToPersonalProfile(request.sourceProfile),
     ...(sourceAssets.length ? { sourceAssets } : {}),
@@ -189,6 +197,7 @@ export function isUpdateResumeVersionRequest(value: unknown): value is UpdateRes
   return (
     isRecord(value) &&
     typeof value.expectedRevision === "number" &&
+    (value.status === undefined || ["draft", "reviewed", "exported", "applied"].includes(String(value.status))) &&
     isRecord(value.document) &&
     value.document.schemaVersion === 1 &&
     isRecord(value.document.profile) &&
@@ -222,6 +231,7 @@ export function isUpdateResumeTemplateRequest(value: unknown): value is UpdateRe
     && typeof value.name === "string"
     && value.name.trim().length > 0
     && value.name.length <= 120
+    && Number.isSafeInteger(value.expectedRevision) && Number(value.expectedRevision) >= 1
     && isResumeDocument(value.document);
 }
 

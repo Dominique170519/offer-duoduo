@@ -47,10 +47,10 @@ test("private cloud data: ingress, isolation, deletion, export and account clean
     assert.equal(created.status, 201);
     noPrivate(created.body);
     noPrivate([...store.resumeTemplates.values()]);
-    const updated = await req(`/v1/resume-templates/${template.id}`, tokens[0], "PATCH", { name: template.name, document });
+    const updated = await req(`/v1/resume-templates/${template.id}`, tokens[0], "PATCH", { name: template.name, document, expectedRevision: 1 });
     assert.equal(updated.status, 200);
     noPrivate(updated.body);
-    const synced = await req("/v1/resume-templates/sync", tokens[0], "POST", { userId: users[1].id, templates: [{ ...template, document, updatedAt: "2099-01-01T00:00:00.000Z", unknown: "PRIVATE_TEMPLATE" }] });
+    const synced = await req("/v1/resume-templates/sync", tokens[0], "POST", { userId: users[1].id, templates: [{ ...template, document, revision: updated.body.data.template.revision, updatedAt: "2099-01-01T00:00:00.000Z", unknown: "PRIVATE_TEMPLATE" }] });
     assert.equal(synced.status, 200);
     noPrivate(synced.body);
     noPrivate([...store.resumeTemplates.values()]);
@@ -60,7 +60,7 @@ test("private cloud data: ingress, isolation, deletion, export and account clean
   await t.test("B cannot read/change/delete A template, even knowing its ID", async () => {
     const path = `/v1/resume-templates/${template.id}`;
     assert.equal((await req(path, tokens[1])).status, 404);
-    assert.equal((await req(path, tokens[1], "PATCH", { name: "B", document })).status, 404);
+    assert.equal((await req(path, tokens[1], "PATCH", { name: "B", document, expectedRevision: 1 })).status, 404);
     assert.equal((await req(path, tokens[1], "DELETE")).status, 404);
   });
   await t.test("same IDs are independent between accounts", async () => {
@@ -118,7 +118,7 @@ test("private cloud data: ingress, isolation, deletion, export and account clean
     assert.equal(deleted.profile.fullName, "");
     assert.equal(deleted.document, undefined);
     assert.equal(deleted.sourceFileName, undefined);
-    assert.equal((await req(`/v1/resume-templates/${template.id}`, tokens[0], "PATCH", { name: template.name, document })).status, 404);
+    assert.equal((await req(`/v1/resume-templates/${template.id}`, tokens[0], "PATCH", { name: template.name, document, expectedRevision: 1 })).status, 404);
     const stored = store.resumeTemplates.get(`${users[0].id}:${template.id}`).template;
     assert.equal(stored.profile.fullName, "");
     assert.equal(stored.document, undefined);

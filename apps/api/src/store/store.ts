@@ -231,7 +231,8 @@ export interface OfferFlowStore {
     userId: string,
     versionId: string,
     document: ResumeDocument,
-    expectedRevision: number
+    expectedRevision: number,
+    status?: "draft" | "reviewed" | "exported" | "applied"
   ): Awaitable<ResumeVersionRecord>;
   deleteResumeVersion(userId: string, versionId: string, expectedRevision: number): Awaitable<void>;
 }

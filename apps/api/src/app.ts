@@ -1306,7 +1306,7 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
             throw new HttpError(400, "INVALID_RESUME_VERSION", "简历保存内容不完整");
           }
           success(response, {
-            item: await store.updateResumeVersion(userId, versionId, body.document, body.expectedRevision)
+            item: await store.updateResumeVersion(userId, versionId, body.document, body.expectedRevision, body.status)
           });
           return;
         }

@@ -3364,6 +3364,24 @@ button {
   cursor: pointer;
 }
 
+.profile-review-panel {
+  min-width: 0;
+  margin-block: 10px;
+  padding: 12px;
+  color: var(--of-text, #303c36);
+  background: var(--of-surface, #fff);
+  border: 1px solid var(--of-line, #dce2de);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.profile-review-panel summary { padding-block: 4px; cursor: pointer; font-weight: 600; }
+.profile-review-panel details + details { margin-block-start: 10px; border-block-start: 1px solid var(--of-line, #dce2de); padding-block-start: 8px; }
+.profile-review-panel button { margin: 6px 8px 0 0; padding: 7px 10px; border: 1px solid var(--of-line, #dce2de); border-radius: 6px; background: var(--of-surface, #fff); color: inherit; cursor: pointer; }
+.profile-review-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+.profile-review-panel :is(button, summary, a):focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+
 .profile-match-panel {
   margin-top: 14px;
   padding: 15px;

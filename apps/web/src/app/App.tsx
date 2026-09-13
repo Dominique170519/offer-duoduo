@@ -102,9 +102,9 @@ export function App() {
 
   if (pathname === "/login") return <LoginPage />;
   const tailorMatch = pathname.match(/^\/app\/resumes\/tailor\/([^/]+)$/);
-  if (tailorMatch && !protectedReason) return <ResumeStudioPage taskId={decodeURIComponent(tailorMatch[1])} />;
+  if (tailorMatch && !protectedReason) return <ResumeStudioPage key={`task:${tailorMatch[1]}`} taskId={decodeURIComponent(tailorMatch[1])} />;
   const resumeEditMatch = pathname.match(/^\/app\/resumes\/edit\/([^/]+)$/);
-  if (resumeEditMatch && !protectedReason) return <ResumeStudioPage templateId={decodeURIComponent(resumeEditMatch[1])} />;
+  if (resumeEditMatch && !protectedReason) return <ResumeStudioPage key={`template:${resumeEditMatch[1]}`} templateId={decodeURIComponent(resumeEditMatch[1])} />;
 
   let page: React.ReactNode;
   if (protectedReason) page = <ChatPage />;

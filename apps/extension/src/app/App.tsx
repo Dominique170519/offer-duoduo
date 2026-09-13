@@ -45,6 +45,7 @@ import {
   loadResumeLibrary,
   loadSettings,
   PROFILE_KEY,
+  APPLICATION_PROFILE_KEY,
   RESUMES_KEY,
   saveJobs,
   saveProfile,
@@ -195,7 +196,7 @@ export default function App({ overlay = false }: { overlay?: boolean }) {
         ? activeResumeId
         : resumeLibrary[0]?.id;
       const currentResume = resumeLibrary.find((resume) => resume.id === currentResumeId);
-      setProfile(currentResume?.profile || storedProfile);
+      setProfile(storedProfile);
       if (currentResume) void saveProfile(currentResume.profile);
       setOpportunitySnapshot(cachedOpportunities);
       setOpportunityLoading(true);
@@ -228,15 +229,15 @@ export default function App({ overlay = false }: { overlay?: boolean }) {
       if (hasJobChange) {
         void loadJobs().then(setJobs);
       }
-      if (changes[PROFILE_KEY]?.newValue) {
-        setProfile(changes[PROFILE_KEY].newValue as PersonalProfile);
+      if (changes[PROFILE_KEY] || changes[APPLICATION_PROFILE_KEY]) {
+        void loadProfile().then(setProfile);
       }
       if (changes[RESUMES_KEY] || changes[ACTIVE_RESUME_KEY]) {
         void (async () => {
           const [library, activeId] = await Promise.all([loadResumeLibrary(), loadActiveResumeId()]);
           const currentId = activeId && library.some((resume) => resume.id === activeId) ? activeId : library[0]?.id || "";
           const current = library.find((resume) => resume.id === currentId);
-          if (current && !changes[PROFILE_KEY]) setProfile(current.profile);
+          if (current && !changes[PROFILE_KEY]) setProfile(await loadProfile());
         })();
       }
       if (changes[OPPORTUNITY_CACHE_KEY]?.newValue) {
@@ -274,7 +275,7 @@ export default function App({ overlay = false }: { overlay?: boolean }) {
   const persistProfile = async (next: PersonalProfile) => {
     const updated = { ...next, updatedAt: new Date().toISOString() };
     setProfile(updated);
-    await saveProfile(updated);
+    await saveProfile(updated, { selection: true });
   };
 
   const refreshOpportunities = async (sourceUrl = settings.opportunityFeedUrl) => {
@@ -583,7 +584,8 @@ export default function App({ overlay = false }: { overlay?: boolean }) {
         loadResumeLibrary(),
         loadActiveResumeId()
       ]);
-      const sourceResume = resumeLibrary.find((resume) => resume.id === activeResumeId) || resumeLibrary[0];
+      const activeResume = resumeLibrary.find((resume) => resume.id === activeResumeId);
+      const sourceResume = resumeLibrary.find((resume) => resume.kind !== "job" && resume.id === (activeResume?.parentResumeId || activeResume?.id)) || resumeLibrary.find((resume) => resume.kind !== "job");
       if (!sourceResume) throw new Error("请先在简历中心选择一份通用简历");
       const context: TailorContext = normalizeTailorContext({
         jobKey: "",

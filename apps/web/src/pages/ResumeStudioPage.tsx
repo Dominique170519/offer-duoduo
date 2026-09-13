@@ -1,3 +1,4 @@
+import { OfferFlowApiError } from "@offerflow/api-client";
 import {
   lazy,
   Suspense,
@@ -20,10 +21,12 @@ import type {
   ResumeContentBlock,
   ResumeDocument,
   ResumeStudioSectionKey,
-  ResumeTailorProposal
+  ResumeTailorProposal,
+  TailorJobContext
 } from "@offerflow/domain";
 import {
   createResumeDocument,
+  applyReviewedResumeChanges,
   cloudResumeToPersonalProfile,
   hydrateResumeProfileSemantics,
   resolveProfileExperienceKind,
@@ -735,6 +738,10 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
   const [activeTab, setActiveTab] = useState<StudioTab>("editor");
   const [activeStep, setActiveStep] = useState<ResumeStepKey>("personal");
   const [proposal, setProposal] = useState<ResumeTailorProposal>();
+  const [selectedChanges, setSelectedChanges] = useState<string[]>([]);
+  const [saveConflict, setSaveConflict] = useState(false);
+  const [publishNotice, setPublishNotice] = useState("");
+  const [jobSnapshot, setJobSnapshot] = useState<TailorJobContext>();
   const [tailoring, setTailoring] = useState(false);
   const [zoom, setZoom] = useState(0.85);
   const [paperHeightMm, setPaperHeightMm] = useState(0);
@@ -750,11 +757,14 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
   const savedDocumentRef = useRef("");
   const saveQueueRef = useRef(Promise.resolve());
   const paperRef = useRef<HTMLElement | null>(null);
+  const latestDocumentRef = useRef(document);
+  latestDocumentRef.current = document;
 
   useEffect(() => {
     let active = true;
     const load = taskId
       ? api.resumes.getTailorTask(taskId).then(({ task, version }) => {
+          setJobSnapshot(task.job);
           const hydratedDocument = {
             ...version.version.document,
             profile: hydrateResumeProfileSemantics(version.version.document.profile)
@@ -783,7 +793,7 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
               },
               title: template.name,
               versionId: "",
-              revision: 0
+              revision: template.revision ?? 1
             };
           })
         : Promise.reject(new Error("缺少简历标识"));
@@ -820,64 +830,67 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
     return () => observer.disconnect();
   }, [document]);
 
-  const triggerImmediateSave = async () => {
-    if (!document || (!versionId && !templateId)) return;
+  const saveDocumentSnapshot = async (snapshot: ResumeDocument, status?: "reviewed") => {
     setSaveState("saving");
-    const snapshot = structuredClone(document);
-    try {
+    const operation = saveQueueRef.current.catch(() => undefined).then(async () => {
+      if (JSON.stringify(snapshot) === savedDocumentRef.current && !status) return;
       if (taskId) {
-        const result = await api.resumes.updateVersion(versionId, {
-          document: snapshot,
-          expectedRevision: revisionRef.current
-        });
+        const result = await api.resumes.updateVersion(versionId, { document: snapshot, expectedRevision: revisionRef.current, status });
         revisionRef.current = result.item.revision;
       } else if (templateId) {
-        const result = await api.resumes.updateTemplate(templateId, {
-          name: snapshot.title,
-          document: snapshot
-        });
+        const result = await api.resumes.updateTemplate(templateId, { name: snapshot.title, document: snapshot, expectedRevision: revisionRef.current });
+        revisionRef.current = result.template.revision ?? 1;
         setTaskTitle(result.template.name);
       }
       savedDocumentRef.current = JSON.stringify(snapshot);
-      setSaveState("saved");
+      setSaveConflict(false);
+    });
+    saveQueueRef.current = operation;
+    try {
+      await operation;
+      setSaveState(JSON.stringify(latestDocumentRef.current) === savedDocumentRef.current ? "saved" : "saving");
+      return true;
     } catch (cause) {
       setSaveState("error");
-      setError(cause instanceof Error ? cause.message : "保存失败，请点击重试");
+      setSaveConflict(cause instanceof OfferFlowApiError && cause.status === 409);
+      setError(cause instanceof Error ? cause.message : "保存失败，请重试");
+      return false;
     }
+  };
+
+  const triggerImmediateSave = async () => {
+    if (!document || (!versionId && !templateId)) return false;
+    return saveDocumentSnapshot(structuredClone(document));
   };
 
   useEffect(() => {
     if (!document || (!versionId && !templateId)) return;
-    const serialized = JSON.stringify(document);
-    if (serialized === savedDocumentRef.current) return;
+    if (JSON.stringify(document) === savedDocumentRef.current) return;
+    setPublishNotice("");
     setSaveState("saving");
-    const timer = window.setTimeout(() => {
-      const snapshot = structuredClone(document);
-      saveQueueRef.current = saveQueueRef.current.then(async () => {
-        try {
-          if (taskId) {
-            const result = await api.resumes.updateVersion(versionId, {
-              document: snapshot,
-              expectedRevision: revisionRef.current
-            });
-            revisionRef.current = result.item.revision;
-          } else if (templateId) {
-            const result = await api.resumes.updateTemplate(templateId, {
-              name: snapshot.title,
-              document: snapshot
-            });
-            setTaskTitle(result.template.name);
-          }
-          savedDocumentRef.current = JSON.stringify(snapshot);
-          setSaveState(JSON.stringify(document) === JSON.stringify(snapshot) ? "saved" : "saving");
-        } catch (cause) {
-          setSaveState("error");
-          setError(cause instanceof Error ? cause.message : "自动保存失败");
-        }
-      });
-    }, 700);
+    const snapshot = structuredClone(document);
+    const timer = window.setTimeout(() => { void saveDocumentSnapshot(snapshot); }, 700);
     return () => window.clearTimeout(timer);
   }, [document, taskId, templateId, versionId]);
+
+  const saveConflictCopy = async () => {
+    if (!document) return;
+    const id = globalThis.crypto.randomUUID();
+    const title = `${document.title}（保留副本）`;
+    try {
+      await api.resumes.createTemplate({ id, name: title, document: { ...structuredClone(document), id, title } });
+      savedDocumentRef.current = JSON.stringify(document);
+      setSaveState("saved");
+      navigate(`/app/resumes/edit/${encodeURIComponent(id)}`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "副本保存失败，请重试"); }
+  };
+
+  const publishToExtension = async () => {
+    if (!document) return false;
+    const saved = await saveDocumentSnapshot(structuredClone(document), "reviewed");
+    if (saved) setPublishNotice("已确认此版本。插件同步后，可在网申信息中心选择这份岗位简历。");
+    return saved;
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -951,11 +964,13 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
   const generateProposal = async () => {
     if (!taskId) return;
     if (!window.confirm("将这份简历的摘要、技能、工作和项目经历文本交给 AI 服务进行岗位定制？原文件、提取原文、网申专用字段及图片不会发送给 AI。取消则不发送。")) return;
+    if (!await triggerImmediateSave()) return;
     setTailoring(true);
     setError("");
     try {
       const result = await api.resumes.generateTailorTask(taskId);
       setProposal(result.proposal);
+      setSelectedChanges(result.proposal.changes.map(change => change.id));
       setActiveTab("editor");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "AI 定制暂时不可用");
@@ -965,33 +980,23 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
   };
 
   const applyProposal = () => {
-    if (!proposal) return;
-    setDocument((current) =>
-      current
-        ? {
-            ...current,
-            profile: proposal.profile,
-            updatedAt: new Date().toISOString()
-          }
-        : current
-    );
-    setProposal(undefined);
+    if (!proposal || !document) return;
+    try {
+      const profile = applyReviewedResumeChanges(document.profile, proposal, selectedChanges);
+      setDocument({ ...document, profile, updatedAt: new Date().toISOString() });
+      setProposal(undefined);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "请重新生成修改建议"); }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!document) return;
+    if (!await saveDocumentSnapshot(structuredClone(document), taskId ? "reviewed" : undefined)) return;
     const originalTitle = globalThis.document.title;
     const candidateName = document.profile.fullName?.trim() || "个人简历";
     const candidateRole = document.profile.targetRole?.trim() || document.title || "求职简历";
-    const cleanTitle = `${candidateName}_${candidateRole}_简历`;
-    globalThis.document.title = cleanTitle;
-    try {
-      window.print();
-    } finally {
-      window.setTimeout(() => {
-        globalThis.document.title = originalTitle;
-      }, 2000);
-    }
+    globalThis.document.title = `${candidateName}_${candidateRole}_简历`;
+    try { window.print(); }
+    finally { window.setTimeout(() => { globalThis.document.title = originalTitle; }, 2000); }
   };
 
   const selectStudioTab = (tab: StudioTab) => {
@@ -1124,6 +1129,7 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
             </button>
           )}
 
+          {taskId && <button type="button" className="secondary-button" disabled={tailoring} onClick={() => void publishToExtension()}>确认并同步到插件</button>}
           <button className="secondary-button resume-export-button" onClick={handleExportPdf} title="快捷打印或另存为 PDF">
             <Download size={15} aria-hidden="true" />
             <span>导出 PDF</span>
@@ -1247,6 +1253,17 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
               </div>
             )}
 
+            {saveConflict && <section className="resume-ai-review" role="alert">
+              <p>另一端已保存新的内容。当前修改仍保留在页面中，可另存副本后比较。</p>
+              <button type="button" className="secondary-button" onClick={() => void saveConflictCopy()}>保留当前内容为副本</button>
+              <a href={window.location.pathname} target="_blank" rel="noreferrer">在新页面查看云端版本</a>
+            </section>}
+            {publishNotice && <p role="status">{publishNotice}</p>}
+            {jobSnapshot && <details className="resume-ai-review"><summary>查看本次定制的岗位要求</summary>
+              <p>{jobSnapshot.company} · {jobSnapshot.position}</p>
+              <p>{jobSnapshot.summary}</p>
+              <ul>{[...jobSnapshot.responsibilities, ...jobSnapshot.requirements].map((text, index) => <li key={index}>{text}</li>)}</ul>
+            </details>}
             {proposal && (
               <section className="resume-ai-review" aria-labelledby="resume-ai-review-title">
                 <header>
@@ -1262,13 +1279,15 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
                   <ul>
                     {proposal.changes.map((change) => (
                       <li key={change.id}>
-                        <strong>{change.label}</strong>
+                        <label><input type="checkbox" checked={selectedChanges.includes(change.id)} onChange={event => setSelectedChanges(current => event.target.checked ? [...current, change.id] : current.filter(id => id !== change.id))} /> {change.label}</label>
+                        <p><strong>修改前：</strong>{change.before}</p>
+                        <p><strong>修改后：</strong>{change.after}</p>
                         <span>{change.reason}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p>当前内容已经较贴合这个岗位。</p>
+                  <p>本次未返回修改建议，请结合岗位要求核对已有经历。</p>
                 )}
                 <footer>
                   <button type="button" className="secondary-button" onClick={() => setProposal(undefined)}>
@@ -1278,10 +1297,10 @@ export function ResumeStudioPage({ taskId, templateId }: { taskId?: string; temp
                     type="button"
                     className="primary-button"
                     onClick={applyProposal}
-                    disabled={!proposal.changes.length}
+                    disabled={!selectedChanges.length}
                   >
                     <Check size={15} />
-                    应用全部修改
+                    应用选中的修改
                   </button>
                 </footer>
               </section>

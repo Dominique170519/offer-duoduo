@@ -84,9 +84,10 @@ test("cloud account security flows", { timeout: 30000 }, async t => {
       const templates = remote.get(scope);
       if (path === "/v1/applications/sync") return ok({ cursor: "1", acceptedChangeIds: body.changes.map(change => change.changeId), conflicts: [], changes: [] });
       if (path === "/v1/resume-templates/sync") {
-        for (const template of body.templates) if (!templates.get(template.id)?.deletedAt) templates.set(template.id, structuredClone(template));
+        for (const template of body.templates) if (!templates.get(template.id)?.deletedAt) templates.set(template.id, { ...structuredClone(template), revision: (templates.get(template.id)?.revision || 0) + 1 });
         return ok({ templates: [...templates.values()] });
       }
+      if (path === "/v1/resume-versions") return ok({ versions: [] });
       if (path === "/v1/resume-templates") return ok({ templates: [...templates.values()].filter(item => !item.deletedAt) });
       if (path.startsWith("/v1/resume-templates/") && init.method === "DELETE") {
         const id = decodeURIComponent(path.split("/").at(-1));
@@ -105,7 +106,7 @@ test("cloud account security flows", { timeout: 30000 }, async t => {
     h.seed = async (user = "A", options = {}) => {
       const token = `seed-${user}`;
       sessions.set(token, user);
-      await worker.state.saveCloudDataOwner({ userId: user, apiBaseUrl, consentVersion: 1, ...options });
+      await worker.state.saveCloudDataOwner({ userId: user, apiBaseUrl, consentVersion: worker.state.CLOUD_RESUME_CONSENT_VERSION, ...options });
       await worker.state.saveCloudConnection({ apiBaseUrl, user: { id: user, email: `${user}@example.invalid` }, accessToken: token, expiresAt: "2099-01-01T00:00:00.000Z", deviceId: "device", deviceName: "Test", connectedAt: now });
       await worker.storage.saveResumeLibrary([resume()]);
       await worker.storage.saveProfile(profile());

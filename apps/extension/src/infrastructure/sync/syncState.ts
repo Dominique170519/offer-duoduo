@@ -11,7 +11,7 @@ export const CLOUD_SYNC_OUTBOX_KEY = "offerflow.cloudSyncOutbox";
 export const CLOUD_SYNC_METADATA_KEY = "offerflow.cloudSyncMetadata";
 export const CLOUD_DEVICE_ID_KEY = "offerflow.cloudDeviceId";
 export const CLOUD_DATA_OWNER_KEY = "offerflow.cloudDataOwner";
-export const CLOUD_RESUME_CONSENT_VERSION = 1;
+export const CLOUD_RESUME_CONSENT_VERSION = 2;
 
 export interface CloudDataOwner {
   userId: string;

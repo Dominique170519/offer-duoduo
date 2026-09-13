@@ -1265,6 +1265,10 @@ export class MemoryStore implements OfferFlowStore {
     version: ResumeVersionRecord;
   } {
     request = sanitizeTailorTaskRequest(request);
+    const source = this.getResumeTemplate(userId, request.sourceResumeId);
+    if (request.sourceRevision !== undefined && (!source || source.revision !== request.sourceRevision || JSON.stringify(toCloudResumeProfile(source.profile)) !== JSON.stringify(toCloudResumeProfile(request.sourceProfile)))) {
+      throw new MemoryStoreError("RESUME_TEMPLATE_CONFLICT", "母版已更新，请同步后重新生成岗位简历", 409);
+    }
     const now = new Date().toISOString();
     const taskId = randomUUID();
     const versionId = randomUUID();
@@ -1277,6 +1281,7 @@ export class MemoryStore implements OfferFlowStore {
       sourceEvidence: request.sourceEvidence,
       now
     });
+    if (source?.document) document.template = structuredClone(source.document.template);
     document.profile.targetRole = request.job.position;
     document.updatedAt = now;
 
@@ -1287,6 +1292,8 @@ export class MemoryStore implements OfferFlowStore {
         tailorTaskId: taskId,
         sourceResumeId: request.sourceResumeId,
         sourceResumeName: request.sourceResumeName,
+        sourceRevision: source?.revision,
+        jobSnapshot: clone(request.job),
         applicationId: request.applicationId,
         company: request.job.company,
         position: request.job.position,
@@ -1299,6 +1306,7 @@ export class MemoryStore implements OfferFlowStore {
     const task: TailorTask = {
       id: taskId,
       sourceResumeId: request.sourceResumeId,
+      sourceRevision: source?.revision,
       applicationId: request.applicationId,
       job: clone(request.job),
       sourceEvidence: request.sourceEvidence ? clone(request.sourceEvidence) : undefined,
@@ -1374,6 +1382,7 @@ export class MemoryStore implements OfferFlowStore {
     const now = new Date().toISOString();
     const template: ResumeTemplateRecord = {
       id: request.id,
+      revision: 1,
       name: request.name.trim(),
       profile: toCloudResumeProfile(request.document.profile),
       document: {
@@ -1405,9 +1414,11 @@ export class MemoryStore implements OfferFlowStore {
     if (request.document.id !== templateId) {
       throw new MemoryStoreError("INVALID_RESUME_DOCUMENT", "简历文档与当前通用简历不匹配", 400);
     }
+    if (request.expectedRevision !== (stored.template.revision ?? 1)) throw new MemoryStoreError("RESUME_TEMPLATE_CONFLICT", "通用简历已在另一端更新，请保留当前副本后重新载入", 409);
     const now = new Date().toISOString();
     const template: ResumeTemplateRecord = {
       ...sanitizeResumeTemplate(stored.template),
+      revision: (stored.template.revision ?? 1) + 1,
       name: request.name.trim(),
       profile: toCloudResumeProfile(request.document.profile),
       document: {
@@ -1438,13 +1449,21 @@ export class MemoryStore implements OfferFlowStore {
   }
 
   syncResumeTemplates(userId: string, templates: ResumeTemplateRecord[]): ResumeTemplateRecord[] {
+    // Match the PostgreSQL transaction: reject before writing any member.
+    for (const incoming of templates) {
+      const current = this.resumeTemplates.get(`${userId}:${incoming.id}`)?.template;
+      if (!current || current.deletedAt) continue;
+      if (JSON.stringify(toCloudResumeProfile(current.profile)) === JSON.stringify(toCloudResumeProfile(incoming.profile)) && current.name === incoming.name && !incoming.document) continue;
+      if (incoming.revision !== (current.revision ?? 1)) throw new MemoryStoreError("RESUME_TEMPLATE_CONFLICT", "通用简历存在多端修改，请在简历中心处理冲突", 409);
+    }
     for (const incoming of templates) {
       const template = sanitizeResumeTemplate(incoming);
       const key = `${userId}:${template.id}`;
       const current = this.resumeTemplates.get(key)?.template;
       // Deletion is final for an ID, even if a stale client has a future clock.
       if (current?.deletedAt) continue;
-      if (current && current.updatedAt.localeCompare(template.updatedAt) > 0) continue;
+      if (current && JSON.stringify(toCloudResumeProfile(current.profile)) === JSON.stringify(toCloudResumeProfile(template.profile)) && current.name === template.name && !template.document) continue;
+      if (current && incoming.revision !== (current.revision ?? 1)) throw new MemoryStoreError("RESUME_TEMPLATE_CONFLICT", "通用简历存在多端修改，请在简历中心处理冲突", 409);
       const mergedDocument = template.document
         ? clone(template.document)
         : current?.document
@@ -1460,6 +1479,7 @@ export class MemoryStore implements OfferFlowStore {
         template: sanitizeResumeTemplate({
           ...(current ? sanitizeResumeTemplate(current) : {}),
           ...template,
+          revision: current ? (current.revision ?? 1) + 1 : 1,
           document: mergedDocument,
           origin: current?.origin || template.origin || "extension"
         })
@@ -1473,7 +1493,8 @@ export class MemoryStore implements OfferFlowStore {
     userId: string,
     versionId: string,
     document: ResumeDocument,
-    expectedRevision: number
+    expectedRevision: number,
+    status?: "draft" | "reviewed" | "exported" | "applied"
   ): ResumeVersionRecord {
     document = toCloudResumeDocument(document);
     const key = `${userId}:${versionId}`;
@@ -1497,6 +1518,7 @@ export class MemoryStore implements OfferFlowStore {
       revision: expectedRevision + 1,
       version: {
         ...stored.item.version,
+        status: status || "draft",
         document: { ...clone(document), updatedAt: now },
         updatedAt: now
       }

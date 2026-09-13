@@ -9,3 +9,4 @@ export * from "./opportunities.ts";
 export * from "./profile.ts";
 export * from "./resumes.ts";
 export * from "./cloud-resume.ts";
+export * from "./application-profile.ts";
