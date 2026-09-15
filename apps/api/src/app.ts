@@ -68,11 +68,12 @@ import { createEmailVerificationService } from "./auth/email-verification.ts";
 import { opportunityCapabilityAnswer } from "./ai/capabilities.ts";
 import { createResumeTailorProvider, type ResumeTailorProvider } from "./ai/resume-tailor.ts";
 import { loadApiConfig, type ApiConfig } from "./config.ts";
-import { runAgent, type FallbackResult } from "./agent/runtime.ts";
+import { AgentRunError, runAgent, type FallbackResult } from "./agent/runtime.ts";
 import {
   createApplicationContextTool,
   createKnowledgeSearchTool,
-  createOpportunitySearchTool
+  createOpportunitySearchTool,
+  type OpportunitySearchResult
 } from "./agent/tools/index.ts";
 import {
   createInterviewQaParser,
@@ -711,7 +712,10 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
           fallbackHistory: ChatMessage[]
         ): Promise<FallbackResult | undefined> => {
           const results = await searchChatOpportunities(fallbackPrompt, fallbackHistory);
-          if (results) return { kind: "final", content: opportunitySearchAnswer(results) };
+          if (results) {
+            completedOpportunityResults = results;
+            return { kind: "final", content: opportunitySearchAnswer(results) };
+          }
           const capabilityAnswer = opportunityCapabilityAnswer(fallbackPrompt);
           if (capabilityAnswer) return { kind: "final", content: capabilityAnswer };
           return undefined;
@@ -736,6 +740,20 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
               args: event.args
             });
           } else if (event.type === "tool.completed") {
+            // Results come from the registered server tools, not model text.
+            // Retain the latest successful search (including an empty one),
+            // so refined filters cannot leave stale cards in the conversation.
+            if (event.tool === "opportunity_search" && isRecord(event.result) && Array.isArray(event.result.items)) {
+              completedOpportunityResults = event.result as unknown as OpportunitySearchResult;
+            } else if (event.tool === "knowledge_search" && Array.isArray(event.result)) {
+              const knownIds = new Set(citations.map((citation) => citation.id));
+              for (const citation of event.result as KnowledgeCitation[]) {
+                if (knownIds.has(citation.id)) continue;
+                knownIds.add(citation.id);
+                citations.push(citation);
+                await writeSse(response, { type: "citation", messageId: assistantMessage.id, citation });
+              }
+            }
             await writeSse(response, {
               type: "tool.completed",
               messageId: assistantMessage.id,
@@ -756,7 +774,8 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
           assistantMessage.id,
           content,
           citations,
-          "complete"
+          "complete",
+          completedOpportunityResults
         );
         await writeSse(response, { type: "message.completed", message: completed });
         await writeSse(response, { type: "done" });
@@ -835,7 +854,7 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
         await writeSse(response, {
           type: "error",
           error: {
-            code: "CHAT_GENERATION_FAILED",
+            code: error instanceof AgentRunError ? error.code : "CHAT_GENERATION_FAILED",
             message: error instanceof Error ? error.message : "回答生成失败，请重试"
           }
         });

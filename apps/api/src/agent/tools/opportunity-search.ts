@@ -1,4 +1,4 @@
-import type { OpportunityFeedSnapshot } from "@offerflow/domain";
+import type { ChatOpportunityResults, OpportunityFeedSnapshot, RecruitmentOpportunity } from "@offerflow/domain";
 import {
   searchOpportunitySnapshot
 } from "../../opportunities/search.ts";
@@ -21,23 +21,12 @@ export interface OpportunitySearchArgs {
   keyword?: string;
 }
 
-export interface OpportunitySearchResultItem {
-  company: string;
-  title: string;
-  batch?: string;
-  status: string;
-  cities: string[];
-  graduationYears: string[];
-  deadline?: string;
-  updatedAt?: string;
+export interface OpportunitySearchResultItem extends RecruitmentOpportunity {
+  /** Keep the model-facing link alias while retaining the full card data. */
   url: string;
 }
 
-export interface OpportunitySearchResult {
-  query: string;
-  total: number;
-  sourceAvailable: boolean;
-  isBroadSearch: boolean;
+export interface OpportunitySearchResult extends ChatOpportunityResults {
   items: OpportunitySearchResultItem[];
 }
 
@@ -100,19 +89,9 @@ export function createOpportunitySearchTool(
         now
       });
       return {
-        query: results.query,
-        total: results.total,
-        sourceAvailable: results.sourceAvailable,
-        isBroadSearch: results.isBroadSearch,
+        ...results,
         items: results.items.map((opportunity) => ({
-          company: opportunity.company,
-          title: opportunity.title,
-          batch: opportunity.batch,
-          status: opportunity.status ?? "unknown",
-          cities: opportunity.cities,
-          graduationYears: opportunity.graduationYears,
-          deadline: opportunity.deadline,
-          updatedAt: opportunity.updatedAt,
+          ...opportunity,
           url: opportunity.officialUrl
         }))
       };

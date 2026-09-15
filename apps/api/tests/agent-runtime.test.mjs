@@ -90,20 +90,45 @@ test("fallback streams a final answer when the model returns nothing", async () 
   assert.equal(events[0].delta, "兜底回答");
 });
 
-test("iteration cap yields a closing message when nothing was streamed", async () => {
+test("iteration cap reports an incomplete run when nothing was streamed", async () => {
   const llm = fakeLlm([{ calls: [{ id: "c", name: "opportunity_search", args: {} }] }]);
-  const events = [];
-  for await (const event of runAgent({
-    prompt: "hi",
-    history: [],
-    llm,
-    tools: [],
-    toolContext: { userId: "u1", store: {} },
-    systemPrompt: "test",
-    maxIterations: 2
-  })) {
-    events.push(event);
+  await assert.rejects(async () => {
+    for await (const _event of runAgent({
+      prompt: "hi",
+      history: [],
+      llm,
+      tools: [],
+      toolContext: { userId: "u1", store: {} },
+      systemPrompt: "test",
+      maxIterations: 2
+    })) { /* Drain until the iteration limit is reported. */ }
+  }, error => error.code === "AGENT_ITERATION_LIMIT");
+});
+
+test("tool logs retain operational metadata without query, result or exception payloads", async t => {
+  const lines = [];
+  t.mock.method(console, "log", (...args) => lines.push(args));
+  for (const fail of [false, true]) {
+    const tool = {
+      name: "knowledge_search", description: "test", inputSchema: {},
+      async execute() {
+        if (fail) throw new Error("PRIVATE_EXCEPTION_SENTINEL");
+        return [{ excerpt: "PRIVATE_RESUME_SENTINEL" }];
+      }
+    };
+    for await (const _event of runAgent({
+      prompt: "test", history: [], systemPrompt: "test", tools: [tool],
+      toolContext: { userId: "private-user", store: {} },
+      llm: fakeLlm([
+        { calls: [{ id: "call", name: tool.name, args: { query: "PRIVATE_QUERY_SENTINEL" } }] },
+        { text: ["完成"] }
+      ])
+    })) { /* Drain the real runtime, including all log writes. */ }
   }
-  assert.equal(events.at(-1).type, "delta");
-  assert.ok(events.at(-1).delta.length > 0);
+  const serialized = JSON.stringify(lines);
+  assert.doesNotMatch(serialized, /PRIVATE_|private-user/);
+  const completed = lines.filter(([event]) => event === "[agent] tool.completed").map(([, metadata]) => metadata);
+  assert.deepEqual(completed.map(item => item.status), ["success", "error"]);
+  assert.equal(completed[0].resultCount, 1);
+  assert.ok(completed.every(item => item.tool === "knowledge_search" && item.turn === 1 && Number.isFinite(item.durationMs) && item.durationMs >= 0));
 });

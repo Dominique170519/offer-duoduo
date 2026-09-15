@@ -25,6 +25,13 @@ export type FallbackResult =
   | { kind: "final"; content: string }
   | { kind: "tool"; tool: string; args?: Record<string, unknown> };
 
+export class AgentRunError extends Error {
+  constructor(readonly code: "AGENT_EMPTY_RESPONSE" | "AGENT_ITERATION_LIMIT", message: string) {
+    super(message);
+    this.name = "AgentRunError";
+  }
+}
+
 export interface AgentRuntimeInput {
   prompt: string;
   history: ChatMessage[];
@@ -52,18 +59,33 @@ async function* executeToolCall(
   tool: AgentTool,
   call: ParsedToolCall,
   input: AgentRuntimeInput,
-  messages: AgentLlmMessage[]
+  messages: AgentLlmMessage[],
+  turn: number
 ): AsyncGenerator<AgentEvent> {
   if (input.signal?.aborted) throw input.signal.reason;
   yield { type: "tool.started", tool: call.name, args: call.args };
-  console.log(`[agent] tool.started ${call.name}`, JSON.stringify(call.args ?? {}));
+  const startedAt = performance.now();
+  console.log("[agent] tool.started", { tool: tool.name, turn });
   let result: unknown;
+  let status: "success" | "error" = "success";
   try {
     result = await tool.execute(call.args, input.toolContext);
   } catch (error) {
+    status = "error";
     result = { error: error instanceof Error ? error.message : "工具执行失败" };
   }
-  console.log(`[agent] tool.completed ${call.name}`, JSON.stringify(result).slice(0, 300));
+  // Tool inputs, result bodies and exception messages can contain private
+  // resume/application data. Log only operational metadata, never payloads.
+  const items = Array.isArray(result) ? result
+    : result && typeof result === "object" && "items" in result && Array.isArray(result.items) ? result.items
+    : undefined;
+  console.log("[agent] tool.completed", {
+    tool: tool.name,
+    turn,
+    status,
+    durationMs: Math.round(performance.now() - startedAt),
+    ...(items ? { resultCount: items.length } : {})
+  });
   yield { type: "tool.completed", tool: call.name, result };
   messages.push({
     role: "tool",
@@ -75,7 +97,7 @@ async function* executeToolCall(
 /**
  * The agent loop: model decides -> tools run -> results feed back in -> the
  * model decides again, until it emits a final answer or the iteration cap is
- * reached. Text deltas are streamed as they arrive; tool lifecycle is exposed
+ * reached (reported as an incomplete run). Text deltas are streamed as they arrive; tool lifecycle is exposed
  * as events so the SSE layer can render progress.
  */
 export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentEvent> {
@@ -83,7 +105,6 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
   const toolByName = new Map(input.tools.map((tool) => [tool.name, tool]));
   const tools = toToolDefinitions(input.tools);
   const messages = buildMessages(input);
-  let emittedText = false;
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (input.signal?.aborted) throw input.signal.reason;
@@ -93,7 +114,6 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
     for await (const event of input.llm.step({ messages, tools, signal: input.signal })) {
       if (event.type === "text") {
         text += event.delta;
-        emittedText = true;
         yield { type: "delta", delta: event.delta };
       } else {
         calls = event.calls;
@@ -118,13 +138,13 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
           yield { type: "tool.completed", tool: call.name, result: { error: `未知工具：${call.name}` } };
           continue;
         }
-        yield* executeToolCall(tool, call, input, messages);
+        yield* executeToolCall(tool, call, input, messages, iteration + 1);
       }
       continue;
     }
 
     // The model answered directly: text has already been streamed.
-    if (text) {
+    if (text.trim()) {
       console.log(`[agent] turn ${iteration + 1}: 模型直接回答`);
       return;
     }
@@ -133,8 +153,7 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
     if (input.fallback) {
       console.log(`[agent] turn ${iteration + 1}: 模型空响应，走兜底`);
       const fallback = await input.fallback(input.prompt, input.history);
-      if (fallback?.kind === "final") {
-        emittedText = true;
+      if (fallback?.kind === "final" && fallback.content.trim()) {
         yield { type: "delta", delta: fallback.content };
         return;
       }
@@ -145,19 +164,15 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
             tool,
             { id: `fallback-${iteration}`, name: fallback.tool, args: fallback.args ?? {} },
             input,
-            messages
+            messages,
+            iteration + 1
           );
           continue;
         }
       }
     }
-    return;
+    throw new AgentRunError("AGENT_EMPTY_RESPONSE", "这次没有生成有效回答，请重试。");
   }
 
-  if (!emittedText) {
-    yield {
-      type: "delta",
-      delta: "我连续查了几轮还没有得出完整结论。你可以补充目标岗位、城市或公司，我继续帮你。"
-    };
-  }
+  throw new AgentRunError("AGENT_ITERATION_LIMIT", "查询已达到本轮上限，还没有得出完整结论。请补充目标岗位、城市或公司后重试。");
 }
