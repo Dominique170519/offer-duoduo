@@ -53,6 +53,8 @@ export type ChatStreamEvent =
   | { type: "message.started"; message: ChatMessage }
   | { type: "message.delta"; messageId: string; delta: string }
   | { type: "citation"; messageId: string; citation: KnowledgeCitation }
+  | { type: "tool.started"; messageId: string; tool: string; args?: unknown }
+  | { type: "tool.completed"; messageId: string; tool: string }
   | { type: "message.completed"; message: ChatMessage }
   | { type: "error"; error: ApiError }
   | { type: "done" };

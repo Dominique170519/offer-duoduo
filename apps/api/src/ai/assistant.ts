@@ -1,5 +1,6 @@
 import type { ChatMessage, KnowledgeCitation } from "@offerflow/domain";
 import type { ApiConfig } from "../config.ts";
+import type { ToolDefinition } from "../agent/tool.ts";
 import { assistantCapabilityContext } from "./capabilities.ts";
 import { companionSystemPrompt } from "./companion.ts";
 import { assistantRuntimeContext } from "./runtime-context.ts";
@@ -166,4 +167,176 @@ export function createAssistantProvider(
   return config.aiApiKey
     ? new OpenAiCompatibleProvider(config, now)
     : new DemoAssistantProvider(config.demoStreamDelayMs);
+}
+
+// ---------------------------------------------------------------------------
+// Agent step layer: one model round-trip that may return either streamed text
+// or a set of tool calls. This is what the agent runtime loops over.
+// ---------------------------------------------------------------------------
+
+/** A message in the OpenAI-compatible chat request (including tool roles). */
+export interface AgentLlmMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content?: string | null;
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
+}
+
+/** A fully accumulated tool call (streaming fragments merged by index). */
+export interface ParsedToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export type AgentStepEvent =
+  | { type: "text"; delta: string }
+  | { type: "tool_calls"; calls: ParsedToolCall[] };
+
+/** One decision round of the agent: model sees messages + tools, emits text
+ * and/or tool calls. */
+export interface AgentLlm {
+  readonly model: string;
+  step(input: {
+    messages: AgentLlmMessage[];
+    tools: ToolDefinition[];
+    signal?: AbortSignal;
+  }): AsyncGenerator<AgentStepEvent>;
+}
+
+function parseToolArguments(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+class OpenAiAgentLlm implements AgentLlm {
+  readonly model: string;
+
+  constructor(private readonly config: ApiConfig) {
+    this.model = config.aiModel;
+  }
+
+  async *step(input: {
+    messages: AgentLlmMessage[];
+    tools: ToolDefinition[];
+    signal?: AbortSignal;
+  }): AsyncGenerator<AgentStepEvent> {
+    const body: Record<string, unknown> = {
+      model: this.config.aiModel,
+      stream: true,
+      messages: input.messages
+    };
+    if (input.tools.length) {
+      body.tools = input.tools.map((tool) => ({ type: "function", function: tool }));
+    }
+    const response = await fetch(`${this.config.aiBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${this.config.aiApiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: input.signal
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`模型请求失败（${response.status}）`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    // Tool-call fragments arrive split across deltas; merge them by index.
+    const toolCallAccumulator = new Map<number, { id?: string; name?: string; args?: string }>();
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const data = line.slice(5).trim();
+          if (!data || data === "[DONE]") continue;
+          const payload = JSON.parse(data) as {
+            choices?: Array<{
+              delta?: {
+                content?: string;
+                tool_calls?: Array<{
+                  index?: number;
+                  id?: string;
+                  function?: { name?: string; arguments?: string };
+                }>;
+              };
+            }>;
+          };
+          const delta = payload.choices?.[0]?.delta;
+          if (!delta) continue;
+          if (delta.content) yield { type: "text", delta: delta.content };
+          for (const part of delta.tool_calls ?? []) {
+            const index = part.index ?? 0;
+            const current = toolCallAccumulator.get(index) ?? {};
+            if (part.id) current.id = part.id;
+            if (part.function?.name) current.name = part.function.name;
+            if (part.function?.arguments) {
+              current.args = (current.args ?? "") + part.function.arguments;
+            }
+            toolCallAccumulator.set(index, current);
+          }
+        }
+        if (done) break;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (toolCallAccumulator.size) {
+      const calls = [...toolCallAccumulator.entries()]
+        .sort(([left], [right]) => left - right)
+        .map(([, value]) => ({
+          id: value.id ?? `call-${crypto.randomUUID()}`,
+          name: value.name ?? "",
+          args: parseToolArguments(value.args ?? "{}")
+        }))
+        .filter((call) => call.name.length > 0);
+      if (calls.length) yield { type: "tool_calls", calls };
+    }
+  }
+}
+
+/** Text-only step used when no API key is configured. It never emits tool
+ * calls; deterministic routing in the caller handles structured requests. */
+class DemoAgentLlm implements AgentLlm {
+  readonly model = "offerflow-career-demo";
+
+  constructor(private readonly streamDelayMs: number) {}
+
+  async *step(input: {
+    messages: AgentLlmMessage[];
+    tools: ToolDefinition[];
+    signal?: AbortSignal;
+  }): AsyncGenerator<AgentStepEvent> {
+    const lastUser = [...input.messages].reverse().find((message) => message.role === "user");
+    const prompt = lastUser?.content ?? "";
+    for (const chunk of chunks(demoAnswer(prompt, []))) {
+      if (input.signal?.aborted) throw input.signal.reason;
+      await delay(this.streamDelayMs, input.signal);
+      yield { type: "text", delta: chunk };
+    }
+  }
+}
+
+export function createAgentLlm(config: ApiConfig): AgentLlm {
+  return config.aiApiKey
+    ? new OpenAiAgentLlm(config)
+    : new DemoAgentLlm(config.demoStreamDelayMs);
 }
