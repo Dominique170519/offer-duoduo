@@ -26,10 +26,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CompanionAvatar } from "./CompanionAvatar";
 import type { ChatPendingMode } from "./pendingMode";
+import { toolActivityLabel } from "./toolActivity";
 
 interface MessageListProps {
   messages: ChatMessage[];
   pendingMode?: ChatPendingMode;
+  toolActivity?: string[];
   copiedMessageId?: string;
   onCopy: (message: ChatMessage) => void;
   onRetry: (message: ChatMessage) => void;
@@ -94,6 +96,7 @@ function webSourceUrl(value?: string) {
 export function MessageList({
   messages,
   pendingMode,
+  toolActivity = [],
   copiedMessageId,
   onCopy,
   onRetry,
@@ -190,6 +193,9 @@ export function MessageList({
                   <span>参考</span>
                   {message.context.map((item) => <span key={`${item.kind}:${item.id}`}>{item.label}</span>)}
                 </div>
+              )}
+              {message.id === lastAssistantId && message.status === "streaming" && toolActivity.length > 0 && (
+                <ToolActivityIndicator tools={toolActivity} />
               )}
               <div className="message-copy">
                 {message.content ? (
@@ -451,5 +457,16 @@ function ThinkingIndicator() {
     <span className="thinking-indicator" aria-label="小鲤正在整理回答">
       <i /><i /><i />
     </span>
+  );
+}
+
+function ToolActivityIndicator({ tools }: { tools: string[] }) {
+  return (
+    <div className="tool-activity" role="status" aria-live="polite">
+      <span className="tool-activity__spinner" aria-hidden="true" />
+      {tools.map((tool) => (
+        <span key={tool} className="tool-activity__label">{toolActivityLabel(tool)}</span>
+      ))}
+    </div>
   );
 }

@@ -58,6 +58,7 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
   const [loading, setLoading] = useState(Boolean(conversationId));
   const [streaming, setStreaming] = useState(false);
   const [pendingMode, setPendingMode] = useState<ChatPendingMode>();
+  const [toolActivity, setToolActivity] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string>();
   const abortRef = useRef<AbortController>();
@@ -161,7 +162,12 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
     for await (const event of stream) {
       if (event.type === "message.started") {
         setPendingMode(undefined);
+        setToolActivity([]);
         setMessages((current) => [...current, event.message]);
+      } else if (event.type === "tool.started") {
+        setToolActivity((current) => [...new Set([...current, event.tool])]);
+      } else if (event.type === "tool.completed") {
+        setToolActivity((current) => current.filter((tool) => tool !== event.tool));
       } else if (event.type === "message.delta") {
         setMessages((current) =>
           current.map((message) =>
@@ -179,10 +185,12 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
           )
         );
       } else if (event.type === "message.completed") {
+        setToolActivity([]);
         setMessages((current) =>
           current.map((message) => message.id === event.message.id ? event.message : message)
         );
       } else if (event.type === "error") {
+        setToolActivity([]);
         setError(event.error.message);
         setMessages((current) => current.map((message) =>
           message.status === "streaming" ? { ...message, status: "error" } : message
@@ -206,6 +214,7 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
     setError("");
     setStreaming(true);
     setPendingMode(chatPendingMode(content, messages));
+    setToolActivity([]);
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -274,6 +283,7 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
       }
     } finally {
       setPendingMode(undefined);
+      setToolActivity([]);
       setStreaming(false);
       abortRef.current = undefined;
     }
@@ -284,6 +294,7 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
     if (!requireChatLogin()) return;
     setStreaming(true);
     setPendingMode(message.opportunityResults ? "opportunities" : "answer");
+    setToolActivity([]);
     setError("");
     const controller = new AbortController();
     abortRef.current = controller;
@@ -308,6 +319,7 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
       }
     } finally {
       setPendingMode(undefined);
+      setToolActivity([]);
       setStreaming(false);
       abortRef.current = undefined;
     }
@@ -454,6 +466,7 @@ export function ChatPage({ conversationId }: { conversationId?: string }) {
             <MessageList
               messages={messages}
               pendingMode={pendingMode}
+              toolActivity={toolActivity}
               copiedMessageId={copiedMessageId}
               onCopy={copy}
               onRetry={retry}
