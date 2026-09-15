@@ -61,12 +61,19 @@ import type {
   PersonalProfile
 } from "@offerflow/domain";
 import { opportunityStatus, RECRUITMENT_TYPES, STAGE_LABELS } from "@offerflow/domain";
-import { createAssistantProvider, type AssistantProvider } from "./ai/assistant.ts";
+import { createAgentLlm, createAssistantProvider, type AssistantProvider } from "./ai/assistant.ts";
+import { agentSystemPrompt } from "./ai/agent-prompt.ts";
 import { createDirectMailMailer, type EmailMailer } from "./auth/direct-mail.ts";
 import { createEmailVerificationService } from "./auth/email-verification.ts";
 import { opportunityCapabilityAnswer } from "./ai/capabilities.ts";
 import { createResumeTailorProvider, type ResumeTailorProvider } from "./ai/resume-tailor.ts";
 import { loadApiConfig, type ApiConfig } from "./config.ts";
+import { runAgent, type FallbackResult } from "./agent/runtime.ts";
+import {
+  createApplicationContextTool,
+  createKnowledgeSearchTool,
+  createOpportunitySearchTool
+} from "./agent/tools/index.ts";
 import {
   createInterviewQaParser,
   type InterviewQaParser
@@ -649,12 +656,6 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
       .filter((item) => !item.deletedAt)
       .map((item) => item.application);
     const useApplicationContext = shouldUseApplicationContext(prompt, history, applications);
-    const opportunityResults = useApplicationContext
-      ? undefined
-      : await searchChatOpportunities(prompt, history);
-    const capabilityAnswer = opportunityResults || useApplicationContext
-      ? undefined
-      : opportunityCapabilityAnswer(prompt);
     const selectedEntries = await selectedContextKnowledge(userId, context);
     const attachmentEntries = attachmentKnowledge(attachments);
     const contextualEntries = [...selectedEntries, ...attachmentEntries];
@@ -662,15 +663,13 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
     const personalApplicationCitations = useApplicationContext
       ? automaticApplicationCitations(prompt, applications)
       : [];
-    const citations = opportunityResults || capabilityAnswer
-      ? []
-      : [
-        ...explicitCitations(explicitlySelectedEntries),
-        ...personalApplicationCitations,
-        ...(useApplicationContext ? [] : knowledge.search(prompt, 4, contextualEntries))
-      ]
-        .filter((citation, index, items) => items.findIndex((item) => item.id === citation.id) === index)
-        .slice(0, 6);
+    const baseCitations = [
+      ...explicitCitations(explicitlySelectedEntries),
+      ...personalApplicationCitations,
+      ...(useApplicationContext ? [] : knowledge.search(prompt, 4, contextualEntries))
+    ]
+      .filter((citation, index, items) => items.findIndex((item) => item.id === citation.id) === index)
+      .slice(0, 6);
     const assistantMessage = await store.beginAssistantMessage(userId, conversationId);
     const abortController = new AbortController();
     response.on("close", () => {
@@ -685,16 +684,102 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
     response.flushHeaders();
 
     await writeSse(response, { type: "message.started", message: assistantMessage });
-    for (const citation of citations) {
-      await writeSse(response, {
-        type: "citation",
-        messageId: assistantMessage.id,
-        citation
-      });
-    }
 
+    let citations = baseCitations;
+    let completedOpportunityResults: ChatOpportunityResults | undefined;
     let content = "";
     try {
+      if (config.aiApiKey) {
+        // Agent path: the model decides which tools to call and loops until it
+        // has enough to answer. The tools reuse the existing retrieval,
+        // opportunity-search and application-context pipelines unchanged.
+        for (const citation of citations) {
+          await writeSse(response, { type: "citation", messageId: assistantMessage.id, citation });
+        }
+        const tools = [
+          createOpportunitySearchTool({
+            loadSnapshot: freshOpportunitySnapshot,
+            now: () => new Date()
+          }),
+          createKnowledgeSearchTool(knowledge, contextualEntries),
+          createApplicationContextTool()
+        ];
+        // Safety net: if the model returns silence, keep the old deterministic
+        // routing so the user always gets something useful.
+        const fallback = async (
+          fallbackPrompt: string,
+          fallbackHistory: ChatMessage[]
+        ): Promise<FallbackResult | undefined> => {
+          const results = await searchChatOpportunities(fallbackPrompt, fallbackHistory);
+          if (results) return { kind: "final", content: opportunitySearchAnswer(results) };
+          const capabilityAnswer = opportunityCapabilityAnswer(fallbackPrompt);
+          if (capabilityAnswer) return { kind: "final", content: capabilityAnswer };
+          return undefined;
+        };
+        const events = runAgent({
+          prompt,
+          history,
+          llm: createAgentLlm(config),
+          tools,
+          toolContext: { userId, store, signal: abortController.signal, now: () => new Date() },
+          systemPrompt: agentSystemPrompt(citations, new Date()),
+          fallback,
+          maxIterations: 5,
+          signal: abortController.signal
+        });
+        for await (const event of events) {
+          if (event.type === "tool.started") {
+            await writeSse(response, {
+              type: "tool.started",
+              messageId: assistantMessage.id,
+              tool: event.tool,
+              args: event.args
+            });
+          } else if (event.type === "tool.completed") {
+            await writeSse(response, {
+              type: "tool.completed",
+              messageId: assistantMessage.id,
+              tool: event.tool
+            });
+          } else {
+            content += event.delta;
+            await writeSse(response, {
+              type: "message.delta",
+              messageId: assistantMessage.id,
+              delta: event.delta
+            });
+          }
+        }
+        const completed = await store.completeAssistantMessage(
+          userId,
+          conversationId,
+          assistantMessage.id,
+          content,
+          citations,
+          "complete"
+        );
+        await writeSse(response, { type: "message.completed", message: completed });
+        await writeSse(response, { type: "done" });
+        return;
+      }
+
+      // Demo path (no AI_API_KEY): keep the original deterministic routing so
+      // the product still works without a model key.
+      const opportunityResults = useApplicationContext
+        ? undefined
+        : await searchChatOpportunities(prompt, history);
+      completedOpportunityResults = opportunityResults;
+      const capabilityAnswer = opportunityResults || useApplicationContext
+        ? undefined
+        : opportunityCapabilityAnswer(prompt);
+      citations = opportunityResults || capabilityAnswer ? [] : baseCitations;
+      for (const citation of citations) {
+        await writeSse(response, {
+          type: "citation",
+          messageId: assistantMessage.id,
+          citation
+        });
+      }
       if (opportunityResults) {
         content = opportunitySearchAnswer(opportunityResults);
         await writeSse(response, {
@@ -731,7 +816,7 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
         content,
         citations,
         "complete",
-        opportunityResults
+        completedOpportunityResults
       );
       await writeSse(response, { type: "message.completed", message: completed });
       await writeSse(response, { type: "done" });
@@ -744,7 +829,7 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
         content,
         citations,
         aborted ? "stopped" : "error",
-        opportunityResults
+        completedOpportunityResults
       );
       if (!aborted) {
         await writeSse(response, {
