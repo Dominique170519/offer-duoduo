@@ -56,12 +56,14 @@ async function* executeToolCall(
 ): AsyncGenerator<AgentEvent> {
   if (input.signal?.aborted) throw input.signal.reason;
   yield { type: "tool.started", tool: call.name, args: call.args };
+  console.log(`[agent] tool.started ${call.name}`, JSON.stringify(call.args ?? {}));
   let result: unknown;
   try {
     result = await tool.execute(call.args, input.toolContext);
   } catch (error) {
     result = { error: error instanceof Error ? error.message : "工具执行失败" };
   }
+  console.log(`[agent] tool.completed ${call.name}`, JSON.stringify(result).slice(0, 300));
   yield { type: "tool.completed", tool: call.name, result };
   messages.push({
     role: "tool",
@@ -99,6 +101,7 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
     }
 
     if (calls.length) {
+      console.log(`[agent] turn ${iteration + 1}: 模型发起 ${calls.length} 个工具调用`);
       messages.push({
         role: "assistant",
         content: text || null,
@@ -121,10 +124,14 @@ export async function* runAgent(input: AgentRuntimeInput): AsyncGenerator<AgentE
     }
 
     // The model answered directly: text has already been streamed.
-    if (text) return;
+    if (text) {
+      console.log(`[agent] turn ${iteration + 1}: 模型直接回答`);
+      return;
+    }
 
     // Empty response: fall back to deterministic behaviour if available.
     if (input.fallback) {
+      console.log(`[agent] turn ${iteration + 1}: 模型空响应，走兜底`);
       const fallback = await input.fallback(input.prompt, input.history);
       if (fallback?.kind === "final") {
         emittedText = true;
