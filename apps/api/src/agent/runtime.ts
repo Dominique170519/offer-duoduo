@@ -44,13 +44,59 @@ export interface AgentRuntimeInput {
   signal?: AbortSignal;
 }
 
+/**
+ * Rebuild the tool results that were folded into a completed assistant
+ * message (opportunity cards / knowledge citations). The persisted history
+ * only stores the final text plus structured payloads, not the raw tool
+ * calls, so we restore a compact, model-readable summary. Without this the
+ * model cannot see what the previous turn concluded from, which causes
+ * follow-ups like "把结论整理成行动清单" to be misread as new searches.
+ */
+function restoreAssistantToolResults(message: ChatMessage): string {
+  const parts: string[] = [];
+  if (message.content?.trim()) parts.push(message.content.trim());
+
+  const results = message.opportunityResults;
+  if (results) {
+    const sample = results.items
+      .slice(0, 5)
+      .map((item) => {
+        const cities = Array.isArray(item.cities) && item.cities.length ? item.cities.join("/") : "";
+        return `- ${item.company}｜${item.title}${cities ? `｜${cities}` : ""}`;
+      })
+      .join("\n");
+    parts.push(
+      `【上一轮岗位查询结果】条件"${results.query}"，共 ${results.total} 条${
+        results.sourceAvailable ? "" : "（数据源暂不可用，结果可能不全）"
+      }：\n${sample || "（无结果）"}`
+    );
+  }
+
+  if (message.citations?.length) {
+    const cites = message.citations
+      .slice(0, 3)
+      .map((citation) => `- ${citation.title}：${citation.excerpt.slice(0, 80)}`)
+      .join("\n");
+    parts.push(`【上一轮知识检索结果】命中 ${message.citations.length} 条引用：\n${cites}`);
+  }
+
+  return parts.join("\n\n");
+}
+
 function buildMessages(input: AgentRuntimeInput): AgentLlmMessage[] {
   return [
     { role: "system", content: input.systemPrompt },
     ...input.history
       .filter((message) => message.role !== "system" && message.status === "complete")
       .slice(-10)
-      .map((message) => ({ role: message.role, content: message.content })),
+      .map((message) => {
+        // History is filtered to user/assistant above; assert to satisfy the
+        // llm message union without widening it back to ChatRole.
+        if (message.role === "assistant") {
+          return { role: "assistant" as const, content: restoreAssistantToolResults(message) };
+        }
+        return { role: "user" as const, content: message.content };
+      }),
     { role: "user", content: input.prompt }
   ];
 }
