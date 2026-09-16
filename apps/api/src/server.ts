@@ -1,7 +1,11 @@
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { loadEnvFile } from "./load-env.ts";
 import { createOfferFlowApp, type OfferFlowAppOptions } from "./app.ts";
 import { validateProductionConfig } from "./config.ts";
+
+// Load .env before any config is read, so local keys work without exporting.
+loadEnvFile();
 
 export function createOfferFlowServer(options: OfferFlowAppOptions = {}) {
   const app = createOfferFlowApp(options);
