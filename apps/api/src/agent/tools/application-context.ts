@@ -35,7 +35,8 @@ export function createApplicationContextTool(): AgentTool<ApplicationContextResu
   return {
     name: "application_context",
     description:
-      "读取当前登录用户的投递管理记录：已投递的公司、岗位、阶段、下一步、截止时间。当用户询问自己的投递进度、待办、复盘、已投了哪些公司，或需要结合用户的投递记录回答时调用。回复率、通过率等未记录指标不能编造。",
+      "读取当前登录用户的投递管理记录：已投递的公司、岗位、阶段、下一步、截止时间。当用户询问自己的投递进度、待办、复盘、已投了哪些公司，或需要结合用户的投递记录回答时调用。回复率、通过率等未记录指标不能编造。\n" +
+      "当用户要求结合投递记录做推荐或规划（如“结合我的记录推荐还没投的岗位”“根据我的进度规划下一步”）时，也应先调用本工具获取已投列表，供机会检索排除与分析。",
     inputSchema: {
       type: "object",
       properties: {

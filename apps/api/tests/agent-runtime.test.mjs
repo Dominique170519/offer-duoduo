@@ -132,3 +132,53 @@ test("tool logs retain operational metadata without query, result or exception p
   assert.equal(completed[0].resultCount, 1);
   assert.ok(completed.every(item => item.tool === "knowledge_search" && item.turn === 1 && Number.isFinite(item.durationMs) && item.durationMs >= 0));
 });
+
+test("combo recommendation guidance is present in opportunity_search and application_context descriptions", async () => {
+  const { createOpportunitySearchTool } = await import("../src/agent/tools/opportunity-search.ts");
+  const { createApplicationContextTool } = await import("../src/agent/tools/application-context.ts");
+  const opp = createOpportunitySearchTool({
+    loadSnapshot: async () => ({ snapshot: {}, sourceAvailable: false })
+  });
+  const appCtx = createApplicationContextTool();
+  assert.match(opp.description, /组合推荐/);
+  assert.match(opp.description, /excludeCompanies/);
+  assert.match(appCtx.description, /结合投递记录做推荐或规划/);
+  assert.match(appCtx.description, /供机会检索排除与分析/);
+});
+
+test("opportunity_search excludes already-applied companies when excludeCompanies is provided", async () => {
+  const { createOpportunitySearchTool } = await import("../src/agent/tools/opportunity-search.ts");
+  const makeOpportunity = (id, company) => ({
+    id,
+    company,
+    title: `${company}岗位`,
+    batch: "秋招",
+    status: "ongoing",
+    deadline: "2026-09-30",
+    graduationYears: ["2027"],
+    roleTags: ["运营"],
+    cities: ["北京"],
+    officialUrl: `https://example.com/${id}`,
+    sourceUrl: `https://example.com/${id}`
+  });
+  const tool = createOpportunitySearchTool({
+    loadSnapshot: async () => ({
+      snapshot: {
+        opportunities: [
+          makeOpportunity("o-1", "字节跳动"),
+          makeOpportunity("o-2", "美团"),
+          makeOpportunity("o-3", "新浪集团")
+        ]
+      },
+      sourceAvailable: true
+    })
+  });
+  const result = await tool.execute({ role: "运营", excludeCompanies: ["字节跳动", "美团"] });
+  assert.deepEqual(result.items.map((item) => item.company), ["新浪集团"]);
+  assert.deepEqual(result.excludedCompanies, ["字节跳动", "美团"]);
+  assert.equal(result.total, 1);
+
+  const noExclude = await tool.execute({ role: "运营" });
+  assert.equal(noExclude.items.length, 3);
+  assert.equal(noExclude.excludedCompanies, undefined);
+});

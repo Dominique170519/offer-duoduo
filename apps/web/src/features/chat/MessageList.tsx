@@ -15,6 +15,7 @@ import {
   Check,
   Copy,
   FileText,
+  FilterX,
   MapPin,
   RefreshCw,
   Search,
@@ -354,6 +355,12 @@ function OpportunityResultCards({ results }: { results: ChatOpportunityResults }
         </div>
         <p>展示 {items.length} 条，共 {results.total} 条</p>
       </header>
+      {results.excludedCompanies && results.excludedCompanies.length > 0 && (
+        <p className="opportunity-results__excluded">
+          <FilterX aria-hidden="true" size={14} />
+          已为你排除已投递的：{results.excludedCompanies.join("、")}
+        </p>
+      )}
       <ul className="opportunity-results__grid">
         {items.map((opportunity) => {
           const applyUrl = webSourceUrl(opportunity.officialUrl);

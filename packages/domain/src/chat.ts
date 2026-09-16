@@ -42,6 +42,8 @@ export interface ChatOpportunityResults {
   isBroadSearch: boolean;
   fetchedAt?: string;
   sourceUpdatedAt?: string;
+  /** 组合推荐时被排除的已投公司列表（由 opportunity_search 的 excludeCompanies 参数实际过滤后回填）。 */
+  excludedCompanies?: string[];
 }
 
 export interface ChatMessage {
