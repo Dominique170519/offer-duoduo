@@ -11,3 +11,5 @@ export type {
   OpportunitySearchResultItem
 } from "./opportunity-search.ts";
 export { createOpportunitySearchTool } from "./opportunity-search.ts";
+export type { InterviewPrepArgs, InterviewPrepResult } from "./interview-prep.ts";
+export { createInterviewPrepTool } from "./interview-prep.ts";

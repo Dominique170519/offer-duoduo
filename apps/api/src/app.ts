@@ -71,6 +71,7 @@ import { loadApiConfig, type ApiConfig } from "./config.ts";
 import { AgentRunError, runAgent, type FallbackResult } from "./agent/runtime.ts";
 import {
   createApplicationContextTool,
+  createInterviewPrepTool,
   createKnowledgeSearchTool,
   createOpportunitySearchTool,
   type OpportunitySearchResult
@@ -703,7 +704,11 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
             now: () => new Date()
           }),
           createKnowledgeSearchTool(knowledge, contextualEntries),
-          createApplicationContextTool()
+          createApplicationContextTool(),
+          createInterviewPrepTool({
+            loadSnapshot: freshOpportunitySnapshot,
+            knowledge
+          })
         ];
         // Safety net: if the model returns silence, keep the old deterministic
         // routing so the user always gets something useful.
