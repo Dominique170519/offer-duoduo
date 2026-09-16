@@ -35,6 +35,7 @@ import {
   type ChatConversation,
   type ChatMessage,
   type ChatOpportunityResults,
+  type CalendarEvent,
   type InterviewQaPair,
   type InterviewRecord,
   type JobApplication,
@@ -974,6 +975,22 @@ export class PostgresStore implements OfferFlowStore {
   async listApplications(userId: string): Promise<ApplicationSyncItem[]> {
     const result = await this.pool.query("SELECT payload, revision, deleted_at FROM applications WHERE user_id = $1 AND deleted_at IS NULL ORDER BY updated_at DESC", [userId]);
     return result.rows.map((row) => ({ application: row.payload, revision: Number(row.revision), deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : undefined }));
+  }
+
+  async listCalendarEvents(): Promise<CalendarEvent[]> {
+    throw new Error("日历事件暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
+  }
+
+  async createCalendarEvent(userId: string, event: CalendarEvent): Promise<CalendarEvent> {
+    throw new Error("日历事件暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
+  }
+
+  async updateCalendarEvent(userId: string, eventId: string, patch: Partial<Omit<CalendarEvent, "id" | "createdAt">>): Promise<CalendarEvent> {
+    throw new Error("日历事件暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
+  }
+
+  async deleteCalendarEvent(userId: string, eventId: string): Promise<void> {
+    throw new Error("日历事件暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
   }
 
   async getApplication(userId: string, id: string, includeDeleted = false): Promise<ApplicationSyncItem | undefined> {

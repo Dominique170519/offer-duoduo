@@ -31,6 +31,7 @@ import {
   cloudResumeToPersonalProfile,
   toCloudResumeDocument,
   toCloudResumeProfile,
+  type CalendarEvent,
   type ChatAttachment,
   type ChatContextReference,
   type ChatConversation,
@@ -74,6 +75,11 @@ interface StoredConversation {
 interface StoredApplication {
   userId: string;
   item: ApplicationSyncItem;
+}
+
+interface StoredCalendarEvent {
+  userId: string;
+  event: CalendarEvent;
 }
 
 interface SyncLogEntry {
@@ -147,6 +153,7 @@ interface PersistedStoreState {
   conversations: StoredConversation[];
   messages: Record<string, ChatMessage[]>;
   applications: StoredApplication[];
+  calendarEvents?: StoredCalendarEvent[];
   resumeVersions?: StoredResumeVersion[];
   resumeTemplates?: StoredResumeTemplate[];
   tailorTasks?: StoredTailorTask[];
@@ -207,6 +214,7 @@ export class MemoryStore implements OfferFlowStore {
   private readonly conversations = new Map<string, StoredConversation>();
   private readonly messages = new Map<string, ChatMessage[]>();
   private readonly applications = new Map<string, StoredApplication>();
+  private readonly calendarEvents = new Map<string, StoredCalendarEvent>();
   private readonly resumeVersions = new Map<string, StoredResumeVersion>();
   private readonly resumeTemplates = new Map<string, StoredResumeTemplate>();
   private readonly tailorTasks = new Map<string, StoredTailorTask>();
@@ -255,6 +263,9 @@ export class MemoryStore implements OfferFlowStore {
       }
       for (const stored of parsed.applications ?? []) {
         this.applications.set(`${stored.userId}:${stored.item.application.id}`, stored);
+      }
+      for (const stored of parsed.calendarEvents ?? []) {
+        this.calendarEvents.set(`${stored.userId}:${stored.event.id}`, stored);
       }
       for (const stored of parsed.resumeVersions ?? []) {
         this.resumeVersions.set(`${stored.userId}:${stored.item.version.id}`, stored);
@@ -312,6 +323,7 @@ export class MemoryStore implements OfferFlowStore {
       conversations: [...this.conversations.values()],
       messages: Object.fromEntries(this.messages),
       applications: [...this.applications.values()],
+      calendarEvents: [...this.calendarEvents.values()],
       resumeVersions: [...this.resumeVersions.values()],
       resumeTemplates: [...this.resumeTemplates.values()],
       tailorTasks: [...this.tailorTasks.values()],
@@ -407,6 +419,7 @@ export class MemoryStore implements OfferFlowStore {
     this.usersByEmail.delete(normalizeEmail(user.email));
     for (const [id, value] of this.conversations) if (value.userId === userId) { this.conversations.delete(id); this.messages.delete(id); }
     for (const [key, value] of this.applications) if (value.userId === userId) this.applications.delete(key);
+    for (const [key, value] of this.calendarEvents) if (value.userId === userId) this.calendarEvents.delete(key);
     for (const [key, value] of this.resumeVersions) if (value.userId === userId) this.resumeVersions.delete(key);
     for (const [key, value] of this.resumeTemplates) if (value.userId === userId) this.resumeTemplates.delete(key);
     for (const [key, value] of this.tailorTasks) if (value.userId === userId) this.tailorTasks.delete(key);
@@ -1181,6 +1194,44 @@ export class MemoryStore implements OfferFlowStore {
     this.appendSyncLog(userId, item);
     this.persist();
     return clone(item);
+  }
+
+  listCalendarEvents(userId: string): CalendarEvent[] {
+    return [...this.calendarEvents.values()]
+      .filter((stored) => stored.userId === userId)
+      .map((stored) => clone(stored.event))
+      .sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+  }
+
+  createCalendarEvent(userId: string, event: CalendarEvent): CalendarEvent {
+    const stored: StoredCalendarEvent = { userId, event: clone(event) };
+    this.calendarEvents.set(`${userId}:${event.id}`, stored);
+    this.persist();
+    return clone(event);
+  }
+
+  updateCalendarEvent(
+    userId: string,
+    id: string,
+    patch: Partial<Omit<CalendarEvent, "id" | "createdAt">>
+  ): CalendarEvent {
+    const stored = this.calendarEvents.get(`${userId}:${id}`);
+    if (!stored) throw new MemoryStoreError("CALENDAR_EVENT_NOT_FOUND", "没有找到这条日历事件", 404);
+    const updated: CalendarEvent = {
+      ...stored.event,
+      ...patch,
+      updatedAt: new Date().toISOString()
+    };
+    stored.event = updated;
+    this.persist();
+    return clone(updated);
+  }
+
+  deleteCalendarEvent(userId: string, id: string): void {
+    if (!this.calendarEvents.delete(`${userId}:${id}`)) {
+      throw new MemoryStoreError("CALENDAR_EVENT_NOT_FOUND", "没有找到这条日历事件", 404);
+    }
+    this.persist();
   }
 
   syncApplications(userId: string, request: ApplicationSyncRequest): ApplicationSyncResponse {

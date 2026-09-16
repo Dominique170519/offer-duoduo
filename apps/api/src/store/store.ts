@@ -25,6 +25,7 @@ export interface AdminFeedbackFilter {
   offset: number;
 }
 import type {
+  CalendarEvent,
   ChatAttachment,
   ChatContextReference,
   ChatConversation,
@@ -196,6 +197,15 @@ export interface OfferFlowStore {
   ): Awaitable<ApplicationSyncItem>;
   deleteApplication(userId: string, id: string, expectedRevision: number): Awaitable<ApplicationSyncItem>;
   syncApplications(userId: string, request: ApplicationSyncRequest): Awaitable<ApplicationSyncResponse>;
+
+  listCalendarEvents(userId: string): Awaitable<CalendarEvent[]>;
+  createCalendarEvent(userId: string, event: CalendarEvent): Awaitable<CalendarEvent>;
+  updateCalendarEvent(
+    userId: string,
+    id: string,
+    patch: Partial<Omit<CalendarEvent, "id" | "createdAt">>
+  ): Awaitable<CalendarEvent>;
+  deleteCalendarEvent(userId: string, id: string): Awaitable<void>;
 
   listInterviewRecords(userId: string, applicationId: string): Awaitable<InterviewRecord[]>;
   createInterviewRecord(

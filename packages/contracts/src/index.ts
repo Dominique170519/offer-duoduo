@@ -3,6 +3,7 @@ export * from "./admin.ts";
 export * from "./auth.ts";
 export * from "./api.ts";
 export * from "./autofill.ts";
+export * from "./calendar.ts";
 export * from "./chat.ts";
 export * from "./common.ts";
 export * from "./feedback.ts";

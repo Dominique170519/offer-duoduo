@@ -12,11 +12,15 @@ import type {
   AuthCapabilities,
   AuthDeviceSession,
   AuthSession,
+  CalendarAggregateResponse,
+  CalendarEventDetailResponse,
+  CalendarEventListResponse,
   ChatContextResponse,
   ChatStreamEvent,
   ConversationListResponse,
   ConversationResponse,
   CreateApplicationRequest,
+  CreateCalendarEventRequest,
   CreateResumeTemplateRequest,
   CreateTailorTaskRequest,
   CreateTailorTaskResponse,
@@ -55,6 +59,7 @@ import type {
   UpdateConversationRequest,
   UpdateApplicationRequest,
   UpdateAccountAvatarRequest,
+  UpdateCalendarEventRequest,
   UpdateResumeVersionRequest,
   UpdateResumeTemplateRequest,
   UpdateAdminFeedbackStatusRequest,
@@ -325,6 +330,32 @@ export function createApiClient(options: ApiClientOptions) {
       })
   };
 
+  const calendar = {
+    /** Aggregated calendar: manual + application-derived + opportunity deadlines. */
+    aggregate: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString();
+      return request<CalendarAggregateResponse>(`/v1/calendar${qs ? `?${qs}` : ""}`);
+    },
+    listEvents: () => request<CalendarEventListResponse>("/v1/calendar-events"),
+    createEvent: (body: CreateCalendarEventRequest) =>
+      request<CalendarEventDetailResponse>("/v1/calendar-events", {
+        method: "POST",
+        body: JSON.stringify(body)
+      }),
+    updateEvent: (eventId: string, body: UpdateCalendarEventRequest) =>
+      request<CalendarEventDetailResponse>(`/v1/calendar-events/${encodeURIComponent(eventId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(body)
+      }),
+    deleteEvent: (eventId: string) =>
+      request<{ deleted: true }>(`/v1/calendar-events/${encodeURIComponent(eventId)}`, {
+        method: "DELETE"
+      })
+  };
+
   const resumes = {
     listTemplates: () => request<ResumeTemplateListResponse>("/v1/resume-templates"),
     createTemplate: (body: CreateResumeTemplateRequest) =>
@@ -462,6 +493,7 @@ export function createApiClient(options: ApiClientOptions) {
     chat,
     opportunities,
     applications,
+    calendar,
     interviews,
     feedback,
     resumes,

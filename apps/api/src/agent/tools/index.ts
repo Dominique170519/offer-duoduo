@@ -3,6 +3,10 @@ export type {
   ApplicationContextResult
 } from "./application-context.ts";
 export { createApplicationContextTool } from "./application-context.ts";
+export type { CalendarAddArgs, CalendarAddResult } from "./calendar-add.ts";
+export { createCalendarAddTool } from "./calendar-add.ts";
+export type { CalendarContextArgs, CalendarContextResult } from "./calendar-context.ts";
+export { createCalendarContextTool } from "./calendar-context.ts";
 export type { KnowledgeSearchArgs } from "./knowledge-search.ts";
 export { createKnowledgeSearchTool } from "./knowledge-search.ts";
 export type {

@@ -55,12 +55,14 @@ import type {
   ChatContextReference,
   ChatMessage,
   ChatOpportunityResults,
+  CalendarEvent,
   JobApplication,
   KnowledgeCitation,
   OpportunityFeedSnapshot,
   PersonalProfile
 } from "@offerflow/domain";
-import { opportunityStatus, RECRUITMENT_TYPES, STAGE_LABELS } from "@offerflow/domain";
+import { CALENDAR_EVENT_TYPES, isCalendarDayEventInput, opportunityStatus, RECRUITMENT_TYPES, STAGE_LABELS, toDayKey } from "@offerflow/domain";
+import { buildCalendarDayEvents } from "./calendar/aggregate.ts";
 import { createAgentLlm, createAssistantProvider, type AssistantProvider } from "./ai/assistant.ts";
 import { agentSystemPrompt } from "./ai/agent-prompt.ts";
 import { createDirectMailMailer, type EmailMailer } from "./auth/direct-mail.ts";
@@ -71,6 +73,8 @@ import { loadApiConfig, type ApiConfig } from "./config.ts";
 import { AgentRunError, runAgent, type FallbackResult } from "./agent/runtime.ts";
 import {
   createApplicationContextTool,
+  createCalendarAddTool,
+  createCalendarContextTool,
   createInterviewPrepTool,
   createKnowledgeSearchTool,
   createOpportunitySearchTool,
@@ -708,7 +712,9 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
           createInterviewPrepTool({
             loadSnapshot: freshOpportunitySnapshot,
             knowledge
-          })
+          }),
+          createCalendarContextTool(),
+          createCalendarAddTool()
         ];
         // Safety net: if the model returns silence, keep the old deterministic
         // routing so the user always gets something useful.
@@ -1592,6 +1598,76 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
         }
         success(response, await store.syncApplications(userId, body));
         return;
+      }
+
+      if (method === "GET" && path === "/v1/calendar") {
+        const url = new URL(request.url ?? "", "http://localhost");
+        const from = url.searchParams.get("from") ?? undefined;
+        const to = url.searchParams.get("to") ?? undefined;
+        const events = await buildCalendarDayEvents(store, userId, {
+          from,
+          to,
+          loadSnapshot: freshOpportunitySnapshot,
+          limit: 400
+        });
+        success(response, { events });
+        return;
+      }
+
+      if (method === "GET" && path === "/v1/calendar-events") {
+        success(response, { events: await store.listCalendarEvents(userId) });
+        return;
+      }
+
+      if (method === "POST" && path === "/v1/calendar-events") {
+        const body = (await readJson(request)) as { event: CalendarEvent };
+        if (!isRecord(body) || !isCalendarDayEventInput(body.event)) {
+          throw new HttpError(400, "INVALID_CALENDAR_EVENT", "日历事件信息不完整");
+        }
+        const now = new Date().toISOString();
+        const event: CalendarEvent = {
+          id: body.event.id || `evt:${crypto.randomUUID()}`,
+          type: body.event.type,
+          title: body.event.title.trim(),
+          startsAt: body.event.startsAt,
+          endsAt: body.event.endsAt,
+          company: body.event.company,
+          position: body.event.position,
+          applicationId: body.event.applicationId,
+          note: body.event.note,
+          createdAt: now,
+          updatedAt: now
+        };
+        success(response, { event: await store.createCalendarEvent(userId, event) }, 201);
+        return;
+      }
+
+      const calendarEventMatch = path.match(/^\/v1\/calendar-events\/([^/]+)$/);
+      if (calendarEventMatch) {
+        const eventId = decodePath(calendarEventMatch[1]);
+        if (method === "PATCH") {
+          const body = (await readJson(request)) as Record<string, unknown>;
+          const patch: Partial<Omit<CalendarEvent, "id" | "createdAt">> = {};
+          if (typeof body.title === "string") patch.title = body.title.trim();
+          if (typeof body.type === "string" && (CALENDAR_EVENT_TYPES as readonly string[]).includes(body.type)) {
+            patch.type = body.type as CalendarEvent["type"];
+          }
+          if (typeof body.startsAt === "string") patch.startsAt = body.startsAt;
+          if (body.endsAt === null || typeof body.endsAt === "string") patch.endsAt = body.endsAt ?? undefined;
+          if (body.company === null || typeof body.company === "string") patch.company = body.company ?? undefined;
+          if (body.position === null || typeof body.position === "string") patch.position = body.position ?? undefined;
+          if (body.note === null || typeof body.note === "string") patch.note = body.note ?? undefined;
+          if (Object.keys(patch).length === 0) {
+            throw new HttpError(400, "INVALID_CALENDAR_EVENT", "没有可更新的字段");
+          }
+          success(response, { event: await store.updateCalendarEvent(userId, eventId, patch) });
+          return;
+        }
+        if (method === "DELETE") {
+          await store.deleteCalendarEvent(userId, eventId);
+          success(response, { deleted: true as const });
+          return;
+        }
       }
 
       const interviewRecordsMatch = path.match(

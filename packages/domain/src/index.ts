@@ -1,6 +1,7 @@
 export * from "./applications.ts";
 export * from "./application-identity.ts";
 export * from "./application-sync.ts";
+export * from "./calendar.ts";
 export * from "./campus-hiring.ts";
 export * from "./chat.ts";
 export * from "./companion.ts";

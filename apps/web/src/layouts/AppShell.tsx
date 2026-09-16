@@ -5,6 +5,7 @@ import {
   BookOpenCheck,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
   Check,
   ChevronDown,
   CircleHelp,
@@ -68,7 +69,8 @@ const primaryNavigation = [
   { href: "/app/companies", label: "公司投递直达", mobileLabel: "直达", icon: Building2, requiresAuth: false },
   { href: "/app/resumes", label: "简历中心", mobileLabel: "简历", icon: FileText, requiresAuth: true, badge: "内测中" },
   { href: "/app/practice", label: "笔试练习", mobileLabel: "笔试", icon: BookOpenCheck, requiresAuth: false },
-  { href: "/app/applications", label: "个人投递管理", mobileLabel: "投递", icon: BriefcaseBusiness, requiresAuth: true }
+  { href: "/app/applications", label: "个人投递管理", mobileLabel: "投递", icon: BriefcaseBusiness, requiresAuth: true },
+  { href: "/app/calendar", label: "求职日历", mobileLabel: "日历", icon: CalendarDays, requiresAuth: true }
 ];
 
 function formatConversationTime(value: string, now: number): string {

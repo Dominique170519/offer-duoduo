@@ -22,6 +22,7 @@ import "./styles/theme.css";
 import "./styles/chat-home.css";
 import "./styles/resume-library.css";
 import "./styles/changelog.css";
+import "./styles/calendar.css";
 
 applyColorTheme(getInitialColorTheme());
 
