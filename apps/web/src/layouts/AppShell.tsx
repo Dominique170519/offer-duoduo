@@ -29,6 +29,7 @@ import {
   Settings,
   Search,
   Trash2,
+  User,
   X
 } from "lucide-react";
 import { api } from "../app/api";
@@ -70,7 +71,8 @@ const primaryNavigation = [
   { href: "/app/resumes", label: "简历中心", mobileLabel: "简历", icon: FileText, requiresAuth: true, badge: "内测中" },
   { href: "/app/practice", label: "笔试练习", mobileLabel: "笔试", icon: BookOpenCheck, requiresAuth: false },
   { href: "/app/applications", label: "个人投递管理", mobileLabel: "投递", icon: BriefcaseBusiness, requiresAuth: true },
-  { href: "/app/calendar", label: "求职日历", mobileLabel: "日历", icon: CalendarDays, requiresAuth: true }
+  { href: "/app/calendar", label: "求职日历", mobileLabel: "日历", icon: CalendarDays, requiresAuth: true },
+  { href: "/app/profile", label: "求职画像", mobileLabel: "画像", icon: User, requiresAuth: true }
 ];
 
 function formatConversationTime(value: string, now: number): string {

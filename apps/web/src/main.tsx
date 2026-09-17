@@ -23,6 +23,7 @@ import "./styles/chat-home.css";
 import "./styles/resume-library.css";
 import "./styles/changelog.css";
 import "./styles/calendar.css";
+import "./styles/profile.css";
 
 applyColorTheme(getInitialColorTheme());
 

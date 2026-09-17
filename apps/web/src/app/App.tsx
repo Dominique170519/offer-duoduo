@@ -9,6 +9,7 @@ import { OpportunitiesPage } from "../pages/OpportunitiesPage";
 import { CompanyDirectoryPage } from "../pages/CompanyDirectoryPage";
 import { ApplicationsPage } from "../pages/ApplicationsPage";
 import { CalendarPage } from "../pages/CalendarPage";
+import ProfilePage from "../pages/ProfilePage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ExtensionConnectPage } from "../pages/ExtensionConnectPage";
 import { ResumeStudioPage } from "../pages/ResumeStudioPage";
@@ -28,6 +29,7 @@ const titles: Array<[RegExp, string]> = [
   [/^\/app\/companies/, "公司投递一键直达"],
   [/^\/app\/applications/, "个人投递管理"],
   [/^\/app\/calendar/, "求职日历"],
+  [/^\/app\/profile/, "求职画像"],
   [/^\/app\/resumes\/tailor/, "岗位定制简历"],
   [/^\/app\/resumes\/edit/, "制作简历"],
   [/^\/app\/resumes/, "简历中心"],
@@ -117,6 +119,7 @@ export function App() {
   else if (pathname.startsWith("/app/companies")) page = <CompanyDirectoryPage />;
   else if (pathname.startsWith("/app/applications")) page = <ApplicationsPage />;
   else if (pathname.startsWith("/app/calendar")) page = <CalendarPage />;
+  else if (pathname.startsWith("/app/profile")) page = <ProfilePage />;
   else if (pathname.startsWith("/app/practice")) page = <PracticePage />;
   else if (pathname.startsWith("/app/resumes")) page = <ResumeLibraryPage />;
   else if (pathname.startsWith("/app/settings")) page = <SettingsPage />;

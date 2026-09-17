@@ -60,6 +60,8 @@ import type {
   UpdateApplicationRequest,
   UpdateAccountAvatarRequest,
   UpdateCalendarEventRequest,
+  UpdateJobSeekerProfileRequest,
+  JobSeekerProfileResponse,
   UpdateResumeVersionRequest,
   UpdateResumeTemplateRequest,
   UpdateAdminFeedbackStatusRequest,
@@ -356,6 +358,15 @@ export function createApiClient(options: ApiClientOptions) {
       })
   };
 
+  const userProfile = {
+    get: () => request<JobSeekerProfileResponse>("/v1/user/profile"),
+    update: (body: UpdateJobSeekerProfileRequest) =>
+      request<JobSeekerProfileResponse>("/v1/user/profile", {
+        method: "PUT",
+        body: JSON.stringify(body)
+      })
+  };
+
   const resumes = {
     listTemplates: () => request<ResumeTemplateListResponse>("/v1/resume-templates"),
     createTemplate: (body: CreateResumeTemplateRequest) =>
@@ -494,6 +505,7 @@ export function createApiClient(options: ApiClientOptions) {
     opportunities,
     applications,
     calendar,
+    userProfile,
     interviews,
     feedback,
     resumes,

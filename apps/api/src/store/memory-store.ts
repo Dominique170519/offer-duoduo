@@ -41,12 +41,14 @@ import {
   type InterviewRecord,
   type InterviewRecordSourceType,
   type JobApplication,
+  type JobSeekerProfile,
   type KnowledgeCitation,
   type OpportunityFeedSnapshot,
   type RecruitmentOpportunity,
   type ResumeDocument,
   type TailorTask
 } from "@offerflow/domain";
+import { createEmptyJobSeekerProfile, mergeJobSeekerProfile } from "@offerflow/domain";
 import { hashPassword, verifyPassword } from "../auth/crypto.ts";
 import {
   StoreError,
@@ -80,6 +82,11 @@ interface StoredApplication {
 interface StoredCalendarEvent {
   userId: string;
   event: CalendarEvent;
+}
+
+interface StoredUserProfile {
+  userId: string;
+  profile: JobSeekerProfile;
 }
 
 interface SyncLogEntry {
@@ -154,6 +161,7 @@ interface PersistedStoreState {
   messages: Record<string, ChatMessage[]>;
   applications: StoredApplication[];
   calendarEvents?: StoredCalendarEvent[];
+  userProfiles?: StoredUserProfile[];
   resumeVersions?: StoredResumeVersion[];
   resumeTemplates?: StoredResumeTemplate[];
   tailorTasks?: StoredTailorTask[];
@@ -215,6 +223,7 @@ export class MemoryStore implements OfferFlowStore {
   private readonly messages = new Map<string, ChatMessage[]>();
   private readonly applications = new Map<string, StoredApplication>();
   private readonly calendarEvents = new Map<string, StoredCalendarEvent>();
+  private readonly userProfiles = new Map<string, StoredUserProfile>();
   private readonly resumeVersions = new Map<string, StoredResumeVersion>();
   private readonly resumeTemplates = new Map<string, StoredResumeTemplate>();
   private readonly tailorTasks = new Map<string, StoredTailorTask>();
@@ -266,6 +275,9 @@ export class MemoryStore implements OfferFlowStore {
       }
       for (const stored of parsed.calendarEvents ?? []) {
         this.calendarEvents.set(`${stored.userId}:${stored.event.id}`, stored);
+      }
+      for (const stored of parsed.userProfiles ?? []) {
+        this.userProfiles.set(stored.userId, stored);
       }
       for (const stored of parsed.resumeVersions ?? []) {
         this.resumeVersions.set(`${stored.userId}:${stored.item.version.id}`, stored);
@@ -324,6 +336,7 @@ export class MemoryStore implements OfferFlowStore {
       messages: Object.fromEntries(this.messages),
       applications: [...this.applications.values()],
       calendarEvents: [...this.calendarEvents.values()],
+      userProfiles: [...this.userProfiles.values()],
       resumeVersions: [...this.resumeVersions.values()],
       resumeTemplates: [...this.resumeTemplates.values()],
       tailorTasks: [...this.tailorTasks.values()],
@@ -1232,6 +1245,23 @@ export class MemoryStore implements OfferFlowStore {
       throw new MemoryStoreError("CALENDAR_EVENT_NOT_FOUND", "没有找到这条日历事件", 404);
     }
     this.persist();
+  }
+
+  getUserProfile(userId: string): JobSeekerProfile {
+    const stored = this.userProfiles.get(userId);
+    if (stored) return clone(stored.profile);
+    return createEmptyJobSeekerProfile(userId);
+  }
+
+  updateUserProfile(
+    userId: string,
+    patch: Partial<Omit<JobSeekerProfile, "userId" | "updatedAt">>
+  ): JobSeekerProfile {
+    const existing = this.getUserProfile(userId);
+    const updated = mergeJobSeekerProfile(existing, patch);
+    this.userProfiles.set(userId, { userId, profile: clone(updated) });
+    this.persist();
+    return clone(updated);
   }
 
   syncApplications(userId: string, request: ApplicationSyncRequest): ApplicationSyncResponse {

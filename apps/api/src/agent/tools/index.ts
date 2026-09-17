@@ -17,3 +17,7 @@ export type {
 export { createOpportunitySearchTool } from "./opportunity-search.ts";
 export type { InterviewPrepArgs, InterviewPrepResult } from "./interview-prep.ts";
 export { createInterviewPrepTool } from "./interview-prep.ts";
+export type { UserProfileContextResult } from "./user-profile-context.ts";
+export { createUserProfileContextTool } from "./user-profile-context.ts";
+export type { UserProfileUpdateArgs, UserProfileUpdateResult } from "./user-profile-update.ts";
+export { createUserProfileUpdateTool } from "./user-profile-update.ts";

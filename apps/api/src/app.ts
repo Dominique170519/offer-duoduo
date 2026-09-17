@@ -57,11 +57,12 @@ import type {
   ChatOpportunityResults,
   CalendarEvent,
   JobApplication,
+  JobSeekerProfile,
   KnowledgeCitation,
   OpportunityFeedSnapshot,
   PersonalProfile
 } from "@offerflow/domain";
-import { CALENDAR_EVENT_TYPES, isCalendarDayEventInput, opportunityStatus, RECRUITMENT_TYPES, STAGE_LABELS, toDayKey } from "@offerflow/domain";
+import { CALENDAR_EVENT_TYPES, formatJobSeekerProfile, isCalendarDayEventInput, opportunityStatus, RECRUITMENT_TYPES, STAGE_LABELS, toDayKey } from "@offerflow/domain";
 import { buildCalendarDayEvents } from "./calendar/aggregate.ts";
 import { createAgentLlm, createAssistantProvider, type AssistantProvider } from "./ai/assistant.ts";
 import { agentSystemPrompt } from "./ai/agent-prompt.ts";
@@ -78,6 +79,8 @@ import {
   createInterviewPrepTool,
   createKnowledgeSearchTool,
   createOpportunitySearchTool,
+  createUserProfileContextTool,
+  createUserProfileUpdateTool,
   type OpportunitySearchResult
 } from "./agent/tools/index.ts";
 import {
@@ -714,7 +717,9 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
             knowledge
           }),
           createCalendarContextTool(),
-          createCalendarAddTool()
+          createCalendarAddTool(),
+          createUserProfileContextTool(),
+          createUserProfileUpdateTool()
         ];
         // Safety net: if the model returns silence, keep the old deterministic
         // routing so the user always gets something useful.
@@ -731,13 +736,19 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
           if (capabilityAnswer) return { kind: "final", content: capabilityAnswer };
           return undefined;
         };
+        // Auto-load user profile and inject into system prompt for personalization.
+        const userProfile = await store.getUserProfile(userId);
+        const profileSummary = formatJobSeekerProfile(userProfile);
+        const profileContext = profileSummary
+          ? `\n\n【用户求职画像】\n${profileSummary}\n以上画像来自用户的持久化设置，回答时请基于这些信息给出个性化建议，推荐岗位时自动带上意向城市和目标岗位。`
+          : "";
         const events = runAgent({
           prompt,
           history,
           llm: createAgentLlm(config),
           tools,
           toolContext: { userId, store, signal: abortController.signal, now: () => new Date() },
-          systemPrompt: agentSystemPrompt(citations, new Date()),
+          systemPrompt: agentSystemPrompt(citations, new Date()) + profileContext,
           fallback,
           maxIterations: 5,
           signal: abortController.signal
@@ -1668,6 +1679,29 @@ export function createOfferFlowApp(options: OfferFlowAppOptions = {}) {
           success(response, { deleted: true as const });
           return;
         }
+      }
+
+      if (method === "GET" && path === "/v1/user/profile") {
+        success(response, { profile: await store.getUserProfile(userId) });
+        return;
+      }
+
+      if (method === "PUT" && path === "/v1/user/profile") {
+        const body = (await readJson(request)) as Record<string, unknown>;
+        if (!isRecord(body)) {
+          throw new HttpError(400, "INVALID_PROFILE", "请求体格式错误");
+        }
+        const patch: Partial<Omit<JobSeekerProfile, "userId" | "updatedAt">> = {};
+        if (isRecord(body.background)) patch.background = body.background as JobSeekerProfile["background"];
+        if (isRecord(body.intention)) patch.intention = body.intention as JobSeekerProfile["intention"];
+        if (isRecord(body.stage)) patch.stage = body.stage as JobSeekerProfile["stage"];
+        if (isRecord(body.preferences)) patch.preferences = body.preferences as JobSeekerProfile["preferences"];
+        if (typeof body.experienceSummary === "string") patch.experienceSummary = body.experienceSummary;
+        if (Object.keys(patch).length === 0) {
+          throw new HttpError(400, "INVALID_PROFILE", "没有可更新的字段");
+        }
+        success(response, { profile: await store.updateUserProfile(userId, patch) });
+        return;
       }
 
       const interviewRecordsMatch = path.match(

@@ -39,6 +39,7 @@ import {
   type InterviewQaPair,
   type InterviewRecord,
   type JobApplication,
+  type JobSeekerProfile,
   type KnowledgeCitation,
   type OpportunityFeedSnapshot,
   type RecruitmentOpportunity,
@@ -991,6 +992,17 @@ export class PostgresStore implements OfferFlowStore {
 
   async deleteCalendarEvent(userId: string, eventId: string): Promise<void> {
     throw new Error("日历事件暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
+  }
+
+  async getUserProfile(userId: string): Promise<JobSeekerProfile> {
+    throw new Error("用户画像暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
+  }
+
+  async updateUserProfile(
+    userId: string,
+    patch: Partial<Omit<JobSeekerProfile, "userId" | "updatedAt">>
+  ): Promise<JobSeekerProfile> {
+    throw new Error("用户画像暂不支持 PostgreSQL 存储，请使用内置文件存储运行（OFFERFLOW_STORE=memory）");
   }
 
   async getApplication(userId: string, id: string, includeDeleted = false): Promise<ApplicationSyncItem | undefined> {

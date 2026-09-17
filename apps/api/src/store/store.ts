@@ -35,6 +35,7 @@ import type {
   InterviewRecord,
   InterviewRecordSourceType,
   JobApplication,
+  JobSeekerProfile,
   KnowledgeCitation,
   OpportunityFeedSnapshot,
   RecruitmentOpportunity,
@@ -206,6 +207,12 @@ export interface OfferFlowStore {
     patch: Partial<Omit<CalendarEvent, "id" | "createdAt">>
   ): Awaitable<CalendarEvent>;
   deleteCalendarEvent(userId: string, id: string): Awaitable<void>;
+
+  getUserProfile(userId: string): Awaitable<JobSeekerProfile>;
+  updateUserProfile(
+    userId: string,
+    patch: Partial<Omit<JobSeekerProfile, "userId" | "updatedAt">>
+  ): Awaitable<JobSeekerProfile>;
 
   listInterviewRecords(userId: string, applicationId: string): Awaitable<InterviewRecord[]>;
   createInterviewRecord(
